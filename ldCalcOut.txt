@@ -1,0 +1,46 @@
+(pixy) alleshwaram@denali:/data2/sohan$ LD_WORKERS=9 python CalculateLD.py
+ld_common spec 4d1d1d92b25b (version 2026-09-06.1) -- the simulated side must print the same hash
+17 chromosomes, 9 worker process(es), 1 BLAS thread each. Memory, not CPU, is the limit -- lower LD_WORKERS if the machine swaps.
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+  chr15: 2,508,577 sites | read 168s | total 5412s
+  chr17: 2,642,254 sites | read 182s | total 6626s
+  chr13: 3,582,216 sites | read 239s | total 8735s
+  chr16: 3,281,629 sites | read 226s | total 9134s
+  chr14: 4,217,867 sites | read 291s | total 11664s
+  chr12: 4,819,540 sites | read 322s | total 11921s
+  chr10: 4,716,968 sites | read 315s | total 12186s
+  chr11: 4,891,425 sites | read 338s | total 13848s
+  chr1: 6,549,657 sites | read 452s | total 15997s
+  chr6: 3,992,139 sites | read 277s | total 7160s
+  chr2: 5,936,751 sites | read 398s | total 13788s
+  chr3: 5,949,838 sites | read 412s | total 13868s
+  chr5: 5,543,713 sites | read 383s | total 12511s
+  chr4: 6,050,855 sites | read 406s | total 15438s
+  chr7: 5,853,740 sites | read 391s | total 13891s
+  chr9: 5,022,496 sites | read 350s | total 13145s
+  chr8: 5,581,964 sites | read 375s | total 15551s
+averaged_ldDecay_2015.csv: 24 pops, 24 log bins, 502235275982 SNP pairs
+    mean r^2 0.4346 -> 0.1072; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+averaged_ldDecay_2019.csv: 17 pops, 24 log bins, 395267608434 SNP pairs
+    mean r^2 0.3990 -> 0.0855; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+averaged_ldDecay_2023.csv: 20 pops, 24 log bins, 447696272811 SNP pairs
+    mean r^2 0.4072 -> 0.0869; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+
+total wall time 462.3 min

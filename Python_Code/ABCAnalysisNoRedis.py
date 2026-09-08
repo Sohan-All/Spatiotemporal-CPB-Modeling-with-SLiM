@@ -7,6 +7,10 @@ import shutil
 from pathlib import Path
 from scipy import stats
 
+# Shared LD binning. Safe to import at module level: ld_common pulls in only numpy/csv/hashlib,
+# NOT the simulation stack, so diagnostics keep importing this module without SLiM (CLAUDE.md 3).
+import ld_common as ldc
+
 # Main is imported lazily inside model() so this module stays importable without the simulation
 # stack; diagnostics/*.py reuse the readers and get_keep_mask (CLAUDE.md 9).
 
@@ -36,6 +40,18 @@ prior_distributions = {
 EXCLUDE_SMALL_SUBPOPS = True
 MIN_SUBPOP_N = 4
 
+# Lowest distance bin entering ld_loss, in bp. TWO independent arguments land here (CLAUDE.md
+# 7.5.1): at r = 2.75e-6 the 324-generation forward window only controls d >= 1/(2*324*r) ~ 561 bp
+# -- everything shorter is set by the FIXED ancestral phase (Ne=6700) and carries no POPMULT
+# signal at any price -- and these bins are the ones thin=25 resolves. Do NOT lower this to
+# "use more of the curve": the short bins are not cheap information, they are no information.
+LD_MIN_BIN = 562
+
+# The ld_common spec the empirical targets were computed under (ldCalcOut.txt, 2026-09-07).
+# Different spec on the two sides => the curves are binned differently and ld_loss is meaningless.
+# Checked once in getObservedData(), where it is cheap and fires before any trial runs.
+LD_EMPIRICAL_SPEC = "4d1d1d92b25b"
+
 
 # ---------------------------------------------------------------------------
 # Feature I/O + helpers
@@ -64,6 +80,56 @@ def _read_matrix(path):
                 continue
             matrix.append([np.nan if v.strip() == "" else float(v) for v in row])
     return np.array(matrix, dtype=float)
+
+
+def _read_ld_decay(path):
+    '''Read an LD-decay table written by ld_common.write_decay -> (sum_r2, cnt, labels).
+
+    Returns SUMS, not means. Pooling demes is sum(numerators)/sum(denominators), never a mean of
+    means (CLAUDE.md 5.2, invariant 4); write_decay stores the mean and the pair count, so the
+    numerator is recovered as mean*count.
+
+    Handles both sides: the empirical file's labels are site names, the simulated file's are deme
+    indices "0".."K-1". Both are in specifier-matrix row order (7.5e), which is what makes the
+    column-wise mask valid on both.
+    '''
+    rows = []
+    with open(path, mode='r', newline='', encoding='utf-8') as f:
+        for row in csv.DictReader(f):
+            rows.append(row)
+    if len(rows) != ldc.N_BINS:
+        raise ValueError(f"{path}: {len(rows)} bins vs ld_common's {ldc.N_BINS} -- the two sides "
+                         f"were computed under different specs, so ld_loss is meaningless")
+    labels = [c[3:] for c in rows[0] if c.startswith("r2_")]
+    lo = np.array([int(r["bin_lo"]) for r in rows], dtype=np.int64)
+    if not np.array_equal(lo, ldc.BIN_EDGES[:-1]):
+        raise ValueError(f"{path}: bin edges differ from ld_common's -- specs have drifted")
+    cnt = np.array([[float(r[f"n_{p}"]) for p in labels] for r in rows], dtype=float)
+    mean = np.array([[np.nan if r[f"r2_{p}"].strip() == "" else float(r[f"r2_{p}"])
+                      for p in labels] for r in rows], dtype=float)
+    return np.nan_to_num(mean, nan=0.0) * cnt, cnt, labels
+
+
+def _ld_pooled_mean_abs_diff(sum_sim, cnt_sim, sum_obs, cnt_obs, keep):
+    '''Mean |r2_sim - r2_obs| over the fitted distance bins, demes pooled by pair count.
+
+    RAW levels, deliberately. Subtracting each curve's asymptote to fit "shape" instead was tried
+    and REJECTED (CLAUDE.md 7.5.4): the sim-obs floor offset flips sign across the POPMULT range
+    rather than acting as a fixed pedestal, and removing it flattens the minimum from 111% to 18%.
+    '''
+    fit = ldc.BIN_EDGES[:-1] >= LD_MIN_BIN
+
+    def _pool(s, c):
+        s = np.asarray(s)[:, keep].sum(axis=1)
+        c = np.asarray(c)[:, keep].sum(axis=1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(c > 0, s / np.where(c > 0, c, 1), np.nan)
+
+    m_sim, m_obs = _pool(sum_sim, cnt_sim), _pool(sum_obs, cnt_obs)
+    ok = fit & np.isfinite(m_sim) & np.isfinite(m_obs)
+    if not np.any(ok):
+        return np.nan
+    return float(np.mean(np.abs(m_sim[ok] - m_obs[ok])))
 
 
 _GEO_DIST_CACHE = {}
@@ -146,6 +212,16 @@ def _pi_log_mean_abs_diff(pi_sim, pi_obs):
 _KEEP_MASK_CACHE = {}
 
 
+def _specifier_site_names(year):
+    '''Site names in specifier-matrix row order (col 0) -- the canonical subpop ordering (4).'''
+    names = []
+    with open(Path(f"../data/Genetic_Data/specifier_matrix_{year}.csv"), encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                names.append(line.split(",")[0].strip())
+    return names
+
+
 def get_keep_mask(year):
     '''Boolean mask over specifier-matrix rows: True = subpop retained in the FITTED statistics.
     Drops subpops with fewer than MIN_SUBPOP_N diploid individuals when EXCLUDE_SMALL_SUBPOPS is
@@ -156,11 +232,7 @@ def get_keep_mask(year):
     if year in _KEEP_MASK_CACHE:
         return _KEEP_MASK_CACHE[year]
 
-    names = []
-    with open(Path(f"../data/Genetic_Data/specifier_matrix_{year}.csv"), encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                names.append(line.split(",")[0].strip())
+    names = _specifier_site_names(year)
 
     if not EXCLUDE_SMALL_SUBPOPS:
         mask = np.ones(len(names), dtype=bool)
@@ -214,6 +286,17 @@ def model(parameter):
         outDict[f"{year}_fst"] = _read_matrix(Path(f"../data/Output_Data/fst_{year}.csv"))
         outDict[f"{year}_relatedness"] = _read_matrix(Path(f"../data/Output_Data/relatedness_{year}.csv"))
 
+        # LD decay (CLAUDE.md 7.5). Fails loudly rather than defaulting: an absent file means
+        # AnalyzeTreeSeq.COMPUTE_LD is off, and a trial silently missing a FITTED statistic is
+        # exactly the kind of scale/completeness error 10 says must crash instead (10.1).
+        ld_path = Path(f"../data/Output_Data/ld_{year}.csv")
+        if not ld_path.exists():
+            raise FileNotFoundError(
+                f"{ld_path} missing -- ld_loss is a fitted statistic but the simulated LD curve "
+                f"was not written. Set AnalyzeTreeSeq.COMPUTE_LD (or COMPUTE_LD=1 in the "
+                f"environment).")
+        outDict[f"{year}_ld_sum"], outDict[f"{year}_ld_cnt"], _ = _read_ld_decay(ld_path)
+
     return outDict
 
 
@@ -229,6 +312,7 @@ def calculate_losses(x, x0):
     Returns (all un-standardized):
       - pi_loss     : FITTED  (log-space, element-wise)
       - fst_loss    : FITTED  (off-diagonal)
+      - ld_loss     : FITTED  (binned LD decay, demes pooled, bins >= LD_MIN_BIN)
       - ibd_loss    : DIAGNOSTIC only (|IBD slope difference|)
       - dxy_loss    : DIAGNOSTIC only (off-diagonal)
       - genrel_loss : DIAGNOSTIC only (off-diagonal)
@@ -236,7 +320,8 @@ def calculate_losses(x, x0):
     IBD is diagnostic, not fitted: the observed slope is indistinguishable from zero in all three
     years (CLAUDE.md 7.1).
     '''
-    pi_terms, fst_terms, ibd_terms, dxy_terms, genrel_terms = [], [], [], [], []
+    pi_terms, fst_terms, ld_terms = [], [], []
+    ibd_terms, dxy_terms, genrel_terms = [], [], []
 
     for year in ["2015", "2019", "2023"]:
         keep = get_keep_mask(year)
@@ -248,6 +333,12 @@ def calculate_losses(x, x0):
 
         # Fst (fitted, off-diagonal)
         fst_terms.append(_offdiag_mean_abs_diff(x[f"{year}_fst"][kk], x0[f"{year}_fst"][kk]))
+
+        # LD decay (fitted). Unlike the matrices above this is (bins x demes), so the mask
+        # selects COLUMNS and the demes are then pooled by pair count inside the helper.
+        ld_terms.append(_ld_pooled_mean_abs_diff(
+            x0[f"{year}_ld_sum"], x0[f"{year}_ld_cnt"],
+            x[f"{year}_ld_sum"], x[f"{year}_ld_cnt"], keep))
 
         # IBD slope (diagnostic) -- same real-site distances for observed and simulated
         geo = get_site_geo_distances(year)[kk]
@@ -266,6 +357,7 @@ def calculate_losses(x, x0):
     return {
         "pi_loss": float(np.nanmean(pi_terms)),
         "fst_loss": float(np.nanmean(fst_terms)),
+        "ld_loss": float(np.nanmean(ld_terms)),
         "ibd_loss": float(np.nanmean(ibd_terms)),
         "dxy_loss": float(np.nanmean(dxy_terms)),
         "genrel_loss": float(np.nanmean(genrel_terms)),
@@ -280,6 +372,27 @@ def getObservedData():
         outDict[f"{year}_divergence"] = _read_matrix(Path(f"../data/empiricalStats/averaged_dxy_{year}.csv"))
         outDict[f"{year}_fst"] = _read_matrix(Path(f"../data/empiricalStats/averaged_fst_{year}.csv"))
         outDict[f"{year}_relatedness"] = _read_matrix(Path(f"../data/empiricalStats/averaged_genRel_{year}.csv"))
+
+        # LD decay (fitted, CLAUDE.md 7.5). The column order is asserted rather than assumed:
+        # 7.5e CHECKED that popfile order == specifier order in all three years, but that would
+        # break silently if the popfiles were ever regenerated -- and the same class of bug was
+        # real in CalcGenRel.py (CLAUDE.md 4).
+        s, c, labels = _read_ld_decay(Path(f"../data/empiricalStats/averaged_ldDecay_{year}.csv"))
+        spec = _specifier_site_names(year)
+        if labels != spec:
+            raise ValueError(
+                f"{year}: averaged_ldDecay column order != specifier-matrix order.\n"
+                f"  ld:        {labels[:3]} ...\n  specifier: {spec[:3]} ...\n"
+                f"Every per-subpop matrix in this project is in specifier order (CLAUDE.md 4); "
+                f"remap the LD columns before fitting.")
+        outDict[f"{year}_ld_sum"], outDict[f"{year}_ld_cnt"] = s, c
+
+    if ldc.spec_hash() != LD_EMPIRICAL_SPEC:
+        raise ValueError(
+            f"ld_common spec {ldc.spec_hash()} != {LD_EMPIRICAL_SPEC}, the spec the empirical LD "
+            f"targets were computed under. The two sides are binned differently and ld_loss would "
+            f"be meaningless. Either revert the ld_common change, or re-run "
+            f"ToUseOnBeagles/CalculateLD.py (~7.7 h) and update LD_EMPIRICAL_SPEC.")
 
     return outDict
     
@@ -388,7 +501,7 @@ def run_sims_from_csv(input_csv, output_csv="../out/abc_results.csv", simToRun=-
     # No total_loss: the combined standardized distance is built offline by abc_standardize.py.
     # pi/fst are FITTED; ibd/dxy/genrel are DIAGNOSTIC.
     fieldnames = ["iteration", "m", "total_migration", "pop", "numClusters", "mutation_rate", "recombination_rate",
-                  "pi_loss", "fst_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+                  "pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
     
     with open(output_csv, mode='a', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -486,7 +599,7 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
     # No total_loss: the combined standardized distance is built offline by abc_standardize.py.
     # pi/fst are FITTED; ibd/dxy/genrel are DIAGNOSTIC.
     fieldnames = ["iteration", "m", "total_migration", "pop", "numClusters", "mutation_rate", "recombination_rate",
-                  "pi_loss", "fst_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+                  "pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
 
     with open(output_csv, mode='a', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
