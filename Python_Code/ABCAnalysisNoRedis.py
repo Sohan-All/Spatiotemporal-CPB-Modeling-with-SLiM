@@ -536,7 +536,10 @@ def run_sims_from_csv(input_csv, output_csv="../out/abc_results.csv", simToRun=-
                 
                 # Keep raw features so offline sigma has values, not just losses.
                 for year in ["2015", "2019", "2023"]:
-                    for stat in ["diversities", "divergences", "fst", "relatedness"]:
+                    # "ld" added 2026-09-07 -- it is a FITTED statistic, so its raw curves belong
+                    # in the store alongside the others (posterior-predictive checks, re-scoring
+                    # a batch under a different LD_MIN_BIN without re-simulating).
+                    for stat in ["diversities", "divergences", "fst", "relatedness", "ld"]:
                         src = Path(f"../data/Output_Data/{stat}_{year}.csv")
                         if src.exists():
                             shutil.copy2(src, iteration_dir / f"{stat}_{year}.csv")
@@ -552,6 +555,7 @@ def run_sims_from_csv(input_csv, output_csv="../out/abc_results.csv", simToRun=-
                     "recombination_rate": parameters.get("recombination_rate", DEFAULT_RECOMBINATION_RATE),
                     "pi_loss": losses["pi_loss"],
                     "fst_loss": losses["fst_loss"],
+                    "ld_loss": losses["ld_loss"],
                     "ibd_loss": losses["ibd_loss"],
                     "dxy_loss": losses["dxy_loss"],
                     "genrel_loss": losses["genrel_loss"]
@@ -561,7 +565,8 @@ def run_sims_from_csv(input_csv, output_csv="../out/abc_results.csv", simToRun=-
                 writer.writerow(row)
                 csvfile.flush()  # Ensure data is written immediately
                 
-                print(f"  pi={losses['pi_loss']:.4g} fst={losses['fst_loss']:.4g} ibd={losses['ibd_loss']:.4g} "
+                print(f"  pi={losses['pi_loss']:.4g} fst={losses['fst_loss']:.4g} "
+                      f"ld={losses['ld_loss']:.4g} ibd={losses['ibd_loss']:.4g} "
                       f"dxy={losses['dxy_loss']:.4g} genrel={losses['genrel_loss']:.4g}")
                 print(f"  Detailed results saved to: {iteration_dir}")
                 
@@ -630,7 +635,10 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
                 iteration_dir = detailed_results_dir / f"run{iteration + 1}"
                 iteration_dir.mkdir(parents=True, exist_ok=True)
                 for year in ["2015", "2019", "2023"]:
-                    for stat in ["diversities", "divergences", "fst", "relatedness"]:
+                    # "ld" added 2026-09-07 -- it is a FITTED statistic, so its raw curves belong
+                    # in the store alongside the others (posterior-predictive checks, re-scoring
+                    # a batch under a different LD_MIN_BIN without re-simulating).
+                    for stat in ["diversities", "divergences", "fst", "relatedness", "ld"]:
                         src = Path(f"../data/Output_Data/{stat}_{year}.csv")
                         if src.exists():
                             shutil.copy2(src, iteration_dir / f"{stat}_{year}.csv")
@@ -646,6 +654,7 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
                     "recombination_rate": parameters.get("recombination_rate", DEFAULT_RECOMBINATION_RATE),
                     "pi_loss": losses["pi_loss"],
                     "fst_loss": losses["fst_loss"],
+                    "ld_loss": losses["ld_loss"],
                     "ibd_loss": losses["ibd_loss"],
                     "dxy_loss": losses["dxy_loss"],
                     "genrel_loss": losses["genrel_loss"]
@@ -655,7 +664,8 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
                 writer.writerow(row)
                 csvfile.flush()  # Ensure data is written immediately
 
-                print(f"  pi={losses['pi_loss']:.4g} fst={losses['fst_loss']:.4g} ibd={losses['ibd_loss']:.4g} "
+                print(f"  pi={losses['pi_loss']:.4g} fst={losses['fst_loss']:.4g} "
+                      f"ld={losses['ld_loss']:.4g} ibd={losses['ibd_loss']:.4g} "
                       f"dxy={losses['dxy_loss']:.4g} genrel={losses['genrel_loss']:.4g}")
 
             except Exception as e:
