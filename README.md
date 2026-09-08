@@ -34,9 +34,12 @@ This project attacks that question from both ends:
   recapitates it, **msprime** overlays mutations, and **tskit** produces the same four statistics
   in the same subpopulation order as the empirical side.
 
-The two sides meet in an **ABC distance** over element-wise log-π and off-diagonal F_st. Rejection
-ABC over a large batch of prior draws (run on CHTC / OSPool) gives the posterior over population
-size, total immigration rate, and dispersal-kernel scale.
+The two sides meet in an **ABC distance** over element-wise log-π and off-diagonal F_st, weighted
+by how much demographic signal each actually carries rather than equally. Rejection ABC over a
+large batch of prior draws (run on CHTC / OSPool) gives the posterior. As of the first full pass
+that posterior identifies the *product* of population size and migration rate rather than either
+separately — see **Status** below — which is what the linkage-disequilibrium statistic now in
+development is meant to resolve.
 
 ## Pipeline
 
@@ -121,10 +124,15 @@ essentially all of the memory goes; the forward phase is cheap and linear.
 | 5000 | ~17k | 50.9 s | 1.67 GB | 1764 s | 7.63 GB |
 | 12000 | ~40k | 169.6 s | 3.94 GB | — OOM at 16 GB — | ≈20 GB (est.) |
 
-Analysis memory is superlinear (exponent ≈1.10) while analysis time is sublinear, projecting
-~60 min/trial at the top of the prior. Cluster jobs should be sized for the ceiling, not the
-median — rejection ABC pools whatever survives, so undersized memory silently biases the posterior
-toward the draws small enough to finish.
+Analysis memory is superlinear (exponent ≈1.10) while analysis time is sublinear. Cluster jobs
+should be sized for the ceiling, not the median — rejection ABC pools whatever survives, so
+undersized memory silently biases the posterior toward the draws small enough to finish.
+
+The prior ceiling has since been raised to POPMULT 25000 (~83k individuals), projected at ~44 GB
+and ~1.9 h per trial. That projection extrapolated well past anything that had completed, so it
+was a genuine risk; the first full pass settled it — draws covered the prior uniformly across all
+ten deciles with no deficit at the top, meaning jobs did complete at the ceiling. Peak memory
+there is still projected rather than measured, since the cluster logs have not been parsed back.
 
 ## Findings so far
 
