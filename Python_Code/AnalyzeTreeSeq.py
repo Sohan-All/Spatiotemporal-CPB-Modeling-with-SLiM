@@ -111,8 +111,10 @@ def calculate_ld_decay(ts, genome_indicies, time, year, output_path, rng=None, t
     fitted cut of bin_lo >= 562 (7.5.1) thin=25 gives ~98 bp spacing, which is ample.
     '''
     if rng is None:
-        # np.random is seeded per job by ABCAnalysisNoRedis (np.random.seed(job_id)), so this is
-        # reproducible per trial and varies across them, like the rest of the pipeline.
+        # Draws from numpy's global RNG, which the ABC path deliberately leaves UNSEEDED as of
+        # 2026-09-07 (see the note in ABCAnalysisNoRedis.__main__). So this varies per trial like
+        # SLiM, recapitation and the mutation overlay already did. Diagnostics that need a
+        # reproducible subsample pass `rng` explicitly instead.
         rng = np.random.default_rng(np.random.randint(0, 2**31 - 1))
 
     n_real = _real_sample_sizes(year)

@@ -677,20 +677,29 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
 
 if __name__ == "__main__":
     # Usage: python ABCAnalysisNoRedis.py <job_id> [num_trials]
-    # job_id seeds the RNG and must be DISTINCT per job -- repeats re-draw identical parameters.
+    # job_id is a LABEL ONLY -- it names the output file (the submit file remaps it) and appears
+    # in the log. It does NOT seed anything, so job ids may repeat or overlap between batches
+    # without drawing duplicate parameters.
     # Writes one row per trial to ../out/abc_results.csv plus raw features under
     # ../out/detailed_sim_results/. Afterwards, concatenate the per-job CSVs and run
     # abc_standardize.py. (run_sims_from_csv() is the older CSV-driven path.)
+    #
+    # RNG: deliberately UNSEEDED (was np.random.seed(job_id) until 2026-09-07). Removed because
+    # the reproducibility it offered was never real -- SLiM's forward mating, pyslim.recapitate()
+    # and msprime.sim_mutations() are all unseeded, so re-running a job reproduced its PARAMETERS
+    # but never its losses. And the parameters are already recorded per row in the output CSV, so
+    # nothing recoverable was lost. What it cost was a live footgun: seeds silently collide
+    # across batches, and a job id reused from an earlier batch re-draws that batch's exact
+    # parameters while every other check looks clean.
+    # Independent draws are safe: numpy seeds its global RNG from OS entropy at import, not from
+    # the clock, so simultaneously-launched jobs do not collide (verified 2026-09-07).
+    # KMeans is unaffected either way -- it uses the fixed Main.KMEANS_SEED.
     if len(sys.argv) < 2:
         print("Usage: python ABCAnalysisNoRedis.py <job_id> [num_trials]")
         sys.exit(1)
 
     job_id = int(sys.argv[1])
     num_trials = int(sys.argv[2]) if len(sys.argv) > 2 else 100
-
-    # scipy .rvs() draws from numpy's global RNG, so this makes each job's trials reproducible
-    # and distinct. KMeans is unaffected -- it uses the fixed Main.KMEANS_SEED.
-    np.random.seed(job_id)
 
     # Fixed filename: the submit file remaps it per-process.
     output_csv = "../out/abc_results.csv"

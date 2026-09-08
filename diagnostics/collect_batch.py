@@ -54,11 +54,19 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "Python_Code"))
 from abc_standardize import robust_sigma  # noqa: E402  -- the EXACT sigma the pass will freeze
 
-# The column layout ABCAnalysisNoRedis.py:488 writes. A file whose header differs is from a
-# different code revision and must not be pooled (TODO 0: never pool across the fitted-set change).
+# The column layout ABCAnalysisNoRedis.py writes. A file whose header differs is from a different
+# code revision and must NOT be pooled (TODO 0: never pool across the fitted-set change).
+#
+# This constant is the mechanical guard against pooling. Because it is matched EXACTLY, a batch-1
+# file and a post-ld_loss file cannot both be read by the same invocation -- one of them always
+# fails the header check. Keep it that way: do not "helpfully" accept both layouts.
 EXPECTED_FIELDS = ["iteration", "m", "total_migration", "pop", "numClusters",
                    "mutation_rate", "recombination_rate",
-                   "pi_loss", "fst_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+                   "pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+
+# The pre-2026-09-07 layout (batch 1: no ld_loss). Recognised ONLY so the error message can say
+# which batch a file came from instead of "header does not match".
+LEGACY_FIELDS_NO_LD = [f for f in EXPECTED_FIELDS if f != "ld_loss"]
 
 LOSSES = ["pi_loss", "fst_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
 FITTED = ["pi_loss", "fst_loss"]                       # 7: what currently enters D
@@ -148,6 +156,12 @@ def load_jobs(raw_dir, prefix):
         hdr_idx = [i for i, r in enumerate(rows) if r == EXPECTED_FIELDS]
         if not hdr_idx:
             got = rows[0] if rows else []
+            if rows and rows[0] == LEGACY_FIELDS_NO_LD:
+                problems.append(
+                    f"{path.name}: this is a BATCH-1 file (12 columns, no ld_loss). Batch 1 and "
+                    f"the post-2026-09-07 batches have different fitted-statistic sets and MUST "
+                    f"NOT be pooled -- point --raw-dir at one batch or the other.")
+                continue
             problems.append(f"{path.name}: no header matching the expected layout (first row: {got}) "
                             f"-- DIFFERENT CODE REVISION? not pooled")
             continue
@@ -199,6 +213,19 @@ def report_inventory(jobs, problems, expect_trials):
     print("1. INVENTORY")
     print("=" * 78)
     ids = sorted(jobs)
+    if not ids:
+        # Every file was rejected. Almost always the header guard doing its job -- pointing this
+        # at a batch with a different fitted-statistic set -- so say so instead of an IndexError.
+        print(f"  files parsed        : 0  <-- NOTHING READ")
+        print(f"\n  {len(problems)} file(s) rejected. First few:")
+        for pr in problems[:5]:
+            print(f"    - {pr}")
+        if len(problems) > 5:
+            print(f"    ... and {len(problems) - 5} more")
+        raise SystemExit(
+            "\nNo usable rows. If these are batch-1 files, that is CORRECT and deliberate: "
+            "batch 1 predates ld_loss and must not be pooled with post-2026-09-07 batches. "
+            "Point --raw-dir at a single batch.")
     counts = {j: len(jobs[j]) for j in ids}
     total = sum(counts.values())
     print(f"  files parsed        : {len(ids)}")
@@ -515,6 +542,20 @@ def report_recommendation(scale_rows, decomp, A):
 def write_concat(A, out_path):
     n = len(A["job_id"])
     fields = ["job_id"] + EXPECTED_FIELDS
+
+    # Refuse to overwrite a pooled file from a DIFFERENT batch. --out defaults to
+    # ../out/abc_results.csv, which is batch 1's pooled result, so collecting a new batch and
+    # forgetting --out would destroy it in one command. The header identifies the layout.
+    if out_path.exists() and out_path.stat().st_size > 0:
+        with open(out_path, newline="", encoding="utf-8") as fh:
+            existing = next(csv.reader(fh), [])
+        if existing and existing != fields:
+            raise SystemExit(
+                f"{out_path} already holds a pooled batch with a DIFFERENT column layout:\n"
+                f"  existing: {existing}\n  writing : {fields}\n"
+                f"Overwriting it would destroy that batch's results, and the two must not be "
+                f"pooled anyway. Pass --out with a new path (e.g. ../out/abc_results_pilot.csv).")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
