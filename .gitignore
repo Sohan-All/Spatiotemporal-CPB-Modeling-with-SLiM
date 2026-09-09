@@ -11,3 +11,19 @@ out/simTreeSeq.trees
 # Private working notes
 CLAUDE.md
 TODO.md
+
+# --- ABC batch outputs -------------------------------------------------------
+# The CHTC wrapper (run_code.sh) clones origin/main into every job, and the job
+# writes to ../out/abc_results.csv. A file TRACKED at that exact path therefore
+# arrives pre-populated and gets appended to -- that is the batch-2 delivery bug
+# (CLAUDE.md 7.6.0). Keep the wrapper's write path clear.
+out/abc_results.csv
+out/abc_results_ranked.csv
+out/abc_sigmas.json
+
+# Raw per-job trial data: bulk, regenerable from the cluster, and out/pilot_raw_asreturned
+# alone is 144 MB. The POOLED results are what gets tracked -- see out/batch1/, out/batch2/.
+out/batch1_raw/
+out/pilot_raw/
+out/pilot_raw_asreturned/
+out/*_raw/

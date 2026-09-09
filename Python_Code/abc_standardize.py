@@ -20,9 +20,12 @@ import pandas as pd
 from pathlib import Path
 
 # ----------------------------- CONFIG -----------------------------
-RESULTS_CSV   = Path("../out/abc_results.csv")          # input: the pass results
-RANKED_CSV    = Path("../out/abc_results_ranked.csv")   # output: results + D, sorted
-SIGMAS_JSON   = Path("../out/abc_sigmas.json")          # output: frozen sigmas
+# Pooled batch results live under out/<batch>/, NOT at ../out/abc_results.csv -- that path is
+# where each CHTC job writes its own output, so a tracked file there is cloned into every job
+# and appended to (CLAUDE.md 7.6.0). Point these at the batch you mean to standardize.
+RESULTS_CSV   = Path("../out/batch1/abc_results.csv")          # input: the pass results
+RANKED_CSV    = Path("../out/batch1/abc_results_ranked.csv")   # output: results + D, sorted
+SIGMAS_JSON   = Path("../out/batch1/abc_sigmas.json")          # output: frozen sigmas
 FITTED_STATS  = ["pi_loss", "fst_loss"]                 # statistics that enter the distance D
 # Set from batch 1 (2,495 trials) by diagnostics/collect_batch.py, NOT equal.
 # Rule: weight by the share of each statistic's batch spread that is DEMOGRAPHIC signal --

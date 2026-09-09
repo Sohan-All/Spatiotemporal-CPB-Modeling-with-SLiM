@@ -68,13 +68,21 @@ EXPECTED_FIELDS = ["iteration", "m", "total_migration", "pop", "numClusters",
 # which batch a file came from instead of "header does not match".
 LEGACY_FIELDS_NO_LD = [f for f in EXPECTED_FIELDS if f != "ld_loss"]
 
-LOSSES = ["pi_loss", "fst_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
-FITTED = ["pi_loss", "fst_loss"]                       # 7: what currently enters D
+LOSSES = ["pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+# 7: the fitted set this batch is being asked to weight. ld_loss is NOT yet in
+# abc_standardize.py::FITTED_STATS -- deriving its weight here is the prerequisite
+# for putting it there (7.5 step 5). Keep this list in step with EXPECTED_FIELDS:
+# a statistic missing here is silently dropped from every section below.
+FITTED = ["pi_loss", "fst_loss", "ld_loss"]
 PARAMS = ["pop", "total_migration", "m", "numClusters", "mutation_rate"]
 
 # 7.3 replicate noise floor: run-to-run mean|diff| over 3 reps at POPMULT=5000, identical params.
-NOISE_FLOOR = {"pi_loss": 0.00240, "fst_loss": 0.00017, "ibd_loss": 0.00014,
-               "dxy_loss": 0.00005, "genrel_loss": 0.00001}
+NOISE_FLOOR = {"pi_loss": 0.00240, "fst_loss": 0.00017, "ld_loss": 0.00074,
+               "ibd_loss": 0.00014, "dxy_loss": 0.00005, "genrel_loss": 0.00001}
+# ld_loss: 7.5.5, four seeds at POPMULT=1500 (0.00299/0.00348/0.00411/0.00426), all three
+# dice re-rolled. Same mean-pairwise-|diff| convention as the 7.3 entries. Measured at ONE
+# POPMULT, and at the sweep MINIMUM where the level is lowest -- so it is a floor for the
+# bottom of the prior, not across it.
 # fst_loss and ibd_loss above are on the OLD Nei statistic (6.7). Scaled by the single measured
 # conversion point (fst_loss x1.80); ibd_loss doubles by the same algebra since the IBD slope
 # regresses on F_st/(1-F_st). ASSUMPTION, not a measurement.
@@ -554,7 +562,7 @@ def write_concat(A, out_path):
                 f"{out_path} already holds a pooled batch with a DIFFERENT column layout:\n"
                 f"  existing: {existing}\n  writing : {fields}\n"
                 f"Overwriting it would destroy that batch's results, and the two must not be "
-                f"pooled anyway. Pass --out with a new path (e.g. ../out/abc_results_pilot.csv).")
+                f"pooled anyway. Pass --out with a new path (e.g. ../out/batch2/abc_results_pilot.csv).")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", newline="", encoding="utf-8") as fh:
@@ -571,7 +579,9 @@ def write_concat(A, out_path):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--raw-dir", default="../out/batch1_raw")
-    p.add_argument("--out", default="../out/abc_results.csv")
+    # NOT ../out/abc_results.csv -- that is each CHTC job's own write path, and a tracked
+    # file there is cloned into every job and appended to (CLAUDE.md 7.6.0).
+    p.add_argument("--out", default="../out/batch1/abc_results.csv")
     p.add_argument("--prefix", default="abc_results_")
     p.add_argument("--expect-trials", type=int, default=5)
     p.add_argument("--no-write", action="store_true", help="report only; write nothing")
