@@ -40,6 +40,12 @@ Usage (run from diagnostics/ -- paths are ../data, ../out):
 
     python ld_probe.py --summarize
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import scale_constants as _sc
+import recapitate_util as _ru
+
 import argparse
 import csv
 import gc
@@ -64,7 +70,7 @@ import ABCAnalysisNoRedis as ABC             # noqa: E402  (real get_keep_mask /
 import AnalyzeTreeSeq as ATS                 # noqa: E402  (real calculate_ld_decay)
 
 TIMES = {"2015": 16, "2019": 8, "2023": 0}
-ANCESTRAL_NE = 6700
+ANCESTRAL_NE = _sc.ANCESTRAL_NE
 JSONL = Path("../out/ld_probe.jsonl")
 
 # The spec the empirical run was computed under (ldCalcOut.txt, 2026-09-07). A mismatch means the
@@ -161,7 +167,7 @@ def build_mutated_ts(recomb, mu, seed, save_path=None, raw_ts=None):
     t0 = time.perf_counter()
     print(f"[{time.strftime('%H:%M:%S')}] recapitating anc_ne={ANCESTRAL_NE} ...", flush=True)
     ts = tskit.load(Path(raw_ts or "../out/simTreeSeq.trees"))
-    ts = pyslim.recapitate(ts, recombination_rate=recomb, ancestral_Ne=ANCESTRAL_NE,
+    ts = _ru.recapitate(ts, recombination_rate=recomb, ancestral_Ne=ANCESTRAL_NE,
                            random_seed=seed)
     print(f"[{time.strftime('%H:%M:%S')}] recap {time.perf_counter()-t0:.1f}s "
           f"edges={ts.num_edges}", flush=True)

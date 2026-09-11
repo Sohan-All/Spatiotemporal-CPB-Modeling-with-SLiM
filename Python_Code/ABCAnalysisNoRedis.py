@@ -10,15 +10,29 @@ from scipy import stats
 # Shared LD binning. Safe to import at module level: ld_common pulls in only numpy/csv/hashlib,
 # NOT the simulation stack, so diagnostics keep importing this module without SLiM (CLAUDE.md 3).
 import ld_common as ldc
+import fc_common as fcc
 
 # Main is imported lazily inside model() so this module stays importable without the simulation
 # stack; diagnostics/*.py reuse the readers and get_keep_mask (CLAUDE.md 9).
 
-# NOT a biological mutation rate. Half of a calibration constant -- only theta = 4*Ne_anc*mu is
-# meaningful, so report theta, never mu. Calibrated at POPMULT=5000 (CLAUDE.md 6.1.1).
-DEFAULT_MUTATION_RATE = 4.646e-7
-# Fixed, not inferred: no signal outside LD (CLAUDE.md 6.3).
-DEFAULT_RECOMBINATION_RATE = 2.75e-6
+# THE THREE SCALE-SETTING CONSTANTS LIVE IN scale_constants.py. Import, never re-declare --
+# they were literals in seven files and CLAUDE.md 6.8.1 recorded a planned change being silently
+# ignored in most of them. Re-exported here under their historical names so callers keep working.
+#
+# Q = 100 as of 2026-09-09 (CLAUDE.md 7.9.3): mu and r are external measurements times a DECLARED
+# scale factor, and ancestral_Ne is derived from them -- nothing descends from Cohen's 6700 any
+# more. Neither is a biological rate; only theta = 4*N*mu and rho = 4*N*r are meaningful.
+#
+# mutation_rate is FIXED, not inferred (it left prior_distributions on 2026-09-09). There is no
+# unknown to draw: it is DEFINED by 4*Ne_anc*mu = pi_obs with Ne_anc chosen and pi_obs measured.
+# Do NOT set it to MU_TRUE = 5.8e-9 -- that is the unrescaled rate, Q times too small for a model
+# running at 1/Q scale. Do NOT widen a prior to the trio CI: that uncertainty belongs to
+# Ne_true = pi_obs/(4*mu_true), which is REPORTED, not simulated.
+import scale_constants as sc
+
+DEFAULT_MUTATION_RATE = sc.MUTATION_RATE            # 5.8e-7
+DEFAULT_RECOMBINATION_RATE = sc.RECOMBINATION_RATE  # 1.02e-6
+DEFAULT_ANCESTRAL_NE = sc.ANCESTRAL_NE              # 5259
 
 # Total N ~ 3.33*POPMULT. Raised 12000 -> 25000 on 2026-08-26 (CLAUDE.md 6.7).
 # ~44 GB and ~1.9 h per trial at the ceiling -- size CHTC requests from CLAUDE.md 3.1.
@@ -30,27 +44,67 @@ prior_distributions = {
     "total_migration": stats.uniform(loc=0.001, scale=0.3),     # U(0.001, 0.301)
     "pop": stats.uniform(loc=2000, scale=POPMULT_MAX - 2000),   # POPMULT ~ U(2000, 25000)
     "numClusters": stats.randint(1, 4),                         # 1, 2 or 3; scaled x33 in model()
-    # Nuisance parameter. s is the fractional spread, tightened 0.5 -> 0.05 -> 0.02: anything
-    # wider lets the mu draw rather than POPMULT dominate pi_loss (CLAUDE.md 7.2.1).
-    "mutation_rate": stats.lognorm(s=0.02, scale=DEFAULT_MUTATION_RATE),
+    # mutation_rate is intentionally absent -- fixed at DEFAULT_MUTATION_RATE as of 2026-09-09.
+    # It was lognorm(s=0.02, scale=DEFAULT_MUTATION_RATE), tightened 0.5 -> 0.05 -> 0.02 because a
+    # wider draw let mu rather than POPMULT dominate pi_loss (CLAUDE.md 7.2.1). Even at s=0.02 it
+    # still did: the batch-2 decomposition put pi_loss's unique R2 at 0.149 on mu against 0.080 on
+    # pop (CLAUDE.md 7.6.1). Deleting the draw deletes that nuisance variance outright, which is
+    # why pi_loss's weight can now rise on demographic signal rather than being held down to keep
+    # the mu draw out of D. See DEFAULT_MUTATION_RATE above for why there is no unknown to draw.
 }
+
+# THE STATISTIC AND PARAMETER SETS, DEFINED ONCE. CLAUDE.md 10.2 records this bug class costing
+# two separate silent failures: the set was enumerated by hand in TEN places (fieldnames, the row
+# dict, the raw-feature copy loop and the progress print, each duplicated across the two runner
+# functions, plus collect_batch's LOSSES/FITTED), nothing tied them together, and csv.DictWriter
+# fills a missing key with an EMPTY STRING rather than raising. A batch completed looking healthy
+# with a blank ld_loss column. **Derive everything from these lists; never retype a statistic
+# name.** 10.2 asked for exactly this collapse "the next time the statistic set changes" -- adding
+# fc_loss on 2026-09-09 is that time.
+PARAM_NAMES = ["m", "total_migration", "pop", "numClusters", "mutation_rate", "recombination_rate"]
+_BASE_LOSSES = ["pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+
+# Temporal F_c is OFF until the empirical target exists (7.9.8E). AnalyzeTreeSeq reads the SAME
+# variable and the two must agree -- with it on, both sides are required and a missing file raises.
+COMPUTE_FC = bool(int(__import__("os").environ.get("COMPUTE_FC", "0")))
+LOSS_NAMES = _BASE_LOSSES + (["fc_loss"] if COMPUTE_FC else [])
+CSV_FIELDNAMES = ["iteration"] + PARAM_NAMES + LOSS_NAMES
+
+# Raw per-year features copied into the detailed store so offline sigma has values, not just
+# losses. Temporal F_c is NOT per-year (it spans years), so it is copied separately.
+RAW_FEATURE_STATS = ["diversities", "divergences", "fst", "relatedness", "ld"]
+
+# Empirical target for temporal F_c. Produced by ToUseOnBeagles/CalcTemporalFc.py, which must be
+# RUN on the Beagle machine -- writing this path by hand would be fabricating data.
+TEMPORAL_FC_OBS = Path("../data/empiricalStats/averaged_temporalFc.csv")
+TEMPORAL_FC_SIM = Path("../data/Output_Data/temporal_fc.csv")
+
 
 # Subpops too thinly sampled for a usable pairwise Fst are dropped from the FITTED statistics --
 # at n<=3, 46.7% of 2015's pairs return a negative Fst. Only 2015 is affected (CLAUDE.md 7.0).
 EXCLUDE_SMALL_SUBPOPS = True
 MIN_SUBPOP_N = 4
 
-# Lowest distance bin entering ld_loss, in bp. TWO independent arguments land here (CLAUDE.md
-# 7.5.1): at r = 2.75e-6 the 324-generation forward window only controls d >= 1/(2*324*r) ~ 561 bp
-# -- everything shorter is set by the FIXED ancestral phase (Ne=6700) and carries no POPMULT
-# signal at any price -- and these bins are the ones thin=25 resolves. Do NOT lower this to
-# "use more of the curve": the short bins are not cheap information, they are no information.
-LD_MIN_BIN = 562
+# Lowest distance bin entering ld_loss, in bp. DERIVED FROM r, not a free choice: the
+# 324-generation forward window only controls d >= 1/(2*G*r), and everything shorter is set by
+# the FIXED ancestral phase and carries no POPMULT signal at any price (CLAUDE.md 7.5.1 pt 5).
+# It therefore MOVES whenever RECOMBINATION_RATE does -- 6.8.1 lists forgetting that as one of
+# three places an r change is silently ignored. At r = 1.02e-6 the cut is 1513 bp, so the first
+# admissible ld_common bin edge is 1778 (was 562 at r = 2.75e-6).
+# ld_loss is NOT fitted and will not be (7.8); this is kept correct so the diagnostic stays
+# meaningful, not because anything downstream depends on it.
+LD_MIN_BIN = 1778
 
 # The ld_common spec the empirical targets were computed under (ldCalcOut.txt, 2026-09-07).
 # Different spec on the two sides => the curves are binned differently and ld_loss is meaningless.
 # Checked once in getObservedData(), where it is cheap and fires before any trial runs.
 LD_EMPIRICAL_SPEC = "4d1d1d92b25b"
+
+# The fc_common spec the empirical temporal-F_c target was computed under. The target now in
+# data/empiricalStats/ predates fc_common.EXCLUDED_SAMPLES (CLAUDE.md 7.2.2F), so this stays at the
+# OLD hash -- and fc_loss raises -- until ToUseOnBeagles/CalcTemporalFc.py is re-run under the
+# current spec and this is updated to the hash that run prints.
+FC_EMPIRICAL_SPEC = "ee863fff3bbf"
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +276,113 @@ def _specifier_site_names(year):
     return names
 
 
+def _build_row(iteration, parameters, losses):
+    """One CSV row, built from PARAM_NAMES + LOSS_NAMES rather than by hand.
+
+    RAISES on a missing loss. That is the whole point: csv.DictWriter fills a missing key with an
+    EMPTY STRING, so the old hand-written dicts turned "I forgot to add the new statistic" into a
+    batch that completed, looked healthy, and was useless for its only purpose -- twice
+    (CLAUDE.md 10.2). A crash here costs one trial; a blank column costs a batch.
+    """
+    row = {"iteration": iteration}
+    for k in PARAM_NAMES:
+        if k == "total_migration":
+            row[k] = parameters.get(k, 0.05)
+        elif k == "recombination_rate":
+            row[k] = parameters.get(k, DEFAULT_RECOMBINATION_RATE)
+        elif k == "mutation_rate":
+            row[k] = parameters.get(k, DEFAULT_MUTATION_RATE)
+        else:
+            row[k] = parameters[k]
+    for k in LOSS_NAMES:
+        if k not in losses:
+            raise KeyError(f"calculate_losses did not return {k!r}; got {sorted(losses)}. "
+                           f"LOSS_NAMES and calculate_losses must agree (CLAUDE.md 10.2).")
+        row[k] = losses[k]
+    return row
+
+
+def _format_losses(losses):
+    """Progress line, derived from LOSS_NAMES so a new statistic appears without an edit."""
+    return " ".join(f"{k.replace('_loss', '')}={losses[k]:.4g}" for k in LOSS_NAMES)
+
+
+def _copy_raw_features(iteration_dir):
+    """Keep this trial's raw features so offline sigma has values, not just losses.
+
+    Per-year matrices plus, when it is on, the temporal F_c table -- which is NOT per-year, since
+    it spans them. Copying raw features is what makes a batch re-scorable without re-simulating
+    (it is how a different LD_MIN_BIN could be tried after the fact, CLAUDE.md 7.8.2).
+    """
+    for year in ["2015", "2019", "2023"]:
+        for stat in RAW_FEATURE_STATS:
+            src = Path(f"../data/Output_Data/{stat}_{year}.csv")
+            if src.exists():
+                shutil.copy2(src, iteration_dir / f"{stat}_{year}.csv")
+    if COMPUTE_FC and TEMPORAL_FC_SIM.exists():
+        shutil.copy2(TEMPORAL_FC_SIM, iteration_dir / TEMPORAL_FC_SIM.name)
+
+
+def _read_temporal_fc(path):
+    """{(site_a, site_b): (t, fc)} from a temporal-F_c file. Same layout on both sides."""
+    out = {}
+    with open(path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            out[(row["site_a"].strip(), row["site_b"].strip())] = (int(row["t"]), float(row["fc"]))
+    if not out:
+        raise ValueError(f"{path} holds no field pairs")
+    return out
+
+
+def _fc_loss(obs, sim):
+    """POOL each generation gap first, THEN difference. Mean over gaps of |pooled difference|.
+
+    THE ORDER MATTERS AND IT IS NOT THE OBVIOUS ONE. Differencing per field pair and then
+    averaging -- the natural reading of "mean absolute difference", and what this function did
+    first -- fits mostly sampling noise. Measured directly by the 10.2 live trial: two runs at
+    IDENTICAL parameters gave pooled F_c of 0.19127 and 0.19076, a difference of 0.0005, while the
+    per-pair loss between the same two runs read **0.0280 -- 55x larger**. Individual field pairs
+    at n=7 scatter enormously; the POPMULT signal is a level shift common to all of them, and it
+    survives pooling while the scatter cancels.
+
+    This is 7.2.1's geometry again, and that section measured the consequence rather than arguing
+    it: under L1, uncorrelated scatter scores WORSE than no scatter, so a per-element loss over
+    noise-dominated elements penalises the simulation for having the right amount of variance.
+    It is also what the LD statistic already does -- pool the demes, then compare (7.5d).
+
+    Pooled by GAP rather than over all 19 pairs at once for the reason calculate_losses normalises
+    out per-year entry counts (CLAUDE.md 7): t=8 has 10 field pairs and t=16 has 9, they carry
+    different amounts of drift (8 vs 16 generations), and neither should outvote the other.
+    Note the two gaps can move in OPPOSITE directions -- in the live trial t16 rose while t8 fell
+    -- so pooling all 19 together would cancel real signal, not just noise.
+
+    The sampling pedestal is NOT subtracted from either side -- it is identical by construction
+    (the simulated demes are cut to the same n_i) and cancels in the difference. Subtracting it
+    would be right for a point estimate of Ne and is wrong here (fc_common).
+
+    The per-pair values are still written to data/Output_Data/temporal_fc.csv and copied into the
+    raw-feature store, so a per-pair variant can be scored after the fact without re-simulating.
+    """
+    missing = set(obs) ^ set(sim)
+    if missing:
+        raise ValueError(
+            f"temporal F_c field pairs differ between the two sides: {sorted(missing)[:4]}. "
+            f"Both sides build the list from fc_common.matched_field_pairs, so this means they "
+            f"are running different specs or different specifier matrices.")
+    by_gap = {}
+    for key, (t, fc_obs) in obs.items():
+        t_sim, fc_sim = sim[key]
+        if t_sim != t:
+            raise ValueError(f"{key}: generation gap {t_sim} != {t}")
+        if np.isfinite(fc_obs) and np.isfinite(fc_sim):
+            by_gap.setdefault(t, []).append((fc_sim, fc_obs))
+    if not by_gap:
+        raise ValueError("temporal F_c: no usable field pairs on either side")
+    # pool WITHIN the gap, then take one absolute difference per gap
+    return float(np.mean([abs(np.mean([a for a, _ in v]) - np.mean([b for _, b in v]))
+                          for v in by_gap.values()]))
+
+
 def get_keep_mask(year):
     '''Boolean mask over specifier-matrix rows: True = subpop retained in the FITTED statistics.
     Drops subpops with fewer than MIN_SUBPOP_N diploid individuals when EXCLUDE_SMALL_SUBPOPS is
@@ -297,6 +458,17 @@ def model(parameter):
                 f"environment).")
         outDict[f"{year}_ld_sum"], outDict[f"{year}_ld_cnt"], _ = _read_ld_decay(ld_path)
 
+
+    if COMPUTE_FC:
+        # Written by AnalyzeTreeSeq.calculate_temporal_fc in the same run. If it is absent the
+        # simulated side did not compute it, which means COMPUTE_FC disagrees between the two
+        # modules -- fail loudly rather than emit a trial missing a fitted statistic.
+        if not TEMPORAL_FC_SIM.exists():
+            raise FileNotFoundError(
+                f"COMPUTE_FC is on but {TEMPORAL_FC_SIM} was not written. AnalyzeTreeSeq reads the "
+                f"same COMPUTE_FC environment variable -- set it for the whole process, not just "
+                f"this module.")
+        outDict["temporal_fc"] = _read_temporal_fc(TEMPORAL_FC_SIM)
     return outDict
 
 
@@ -354,7 +526,7 @@ def calculate_losses(x, x0):
         genrel_terms.append(_offdiag_mean_abs_diff(x[f"{year}_relatedness"],
                                                    x0[f"{year}_relatedness"]))
 
-    return {
+    out = {
         "pi_loss": float(np.nanmean(pi_terms)),
         "fst_loss": float(np.nanmean(fst_terms)),
         "ld_loss": float(np.nanmean(ld_terms)),
@@ -362,6 +534,14 @@ def calculate_losses(x, x0):
         "dxy_loss": float(np.nanmean(dxy_terms)),
         "genrel_loss": float(np.nanmean(genrel_terms)),
     }
+    # Temporal F_c spans years rather than sitting inside one, so it is computed outside the loop
+    # and carries no year mask -- the n<4 cut is applied when the pair list is built (fc_common).
+    if COMPUTE_FC:
+        out["fc_loss"] = _fc_loss(x0["temporal_fc"], x["temporal_fc"])
+    if set(out) != set(LOSS_NAMES):
+        raise ValueError(f"calculate_losses returned {sorted(out)} but LOSS_NAMES is "
+                         f"{sorted(LOSS_NAMES)} -- the two must agree (CLAUDE.md 10.2)")
+    return out
 
 def getObservedData():
     '''Load empirical features: pi vector, plus dxy / Fst / genetic-relatedness matrices per year.
@@ -387,6 +567,24 @@ def getObservedData():
                 f"remap the LD columns before fitting.")
         outDict[f"{year}_ld_sum"], outDict[f"{year}_ld_cnt"] = s, c
 
+    if COMPUTE_FC:
+        # The target only exists once ToUseOnBeagles/CalcTemporalFc.py has been RUN on the Beagle
+        # machine (CLAUDE.md 7.9.8E). Fitting a statistic with no target is worse than not fitting
+        # it, so this raises rather than degrading quietly.
+        if not TEMPORAL_FC_OBS.exists():
+            raise FileNotFoundError(
+                f"COMPUTE_FC is on but the empirical target {TEMPORAL_FC_OBS} does not exist. Run "
+                f"ToUseOnBeagles/CalcTemporalFc.py on the Beagle machine, confirm it prints "
+                f"fc_common spec {fcc.spec_hash()}, and copy fc_out/averaged_temporalFc.csv here. "
+                f"Do NOT hand-write this file.")
+        outDict["temporal_fc"] = _read_temporal_fc(TEMPORAL_FC_OBS)
+        if fcc.spec_hash() != FC_EMPIRICAL_SPEC:
+            raise ValueError(
+                f"fc_common spec {fcc.spec_hash()} != {FC_EMPIRICAL_SPEC}, the spec the empirical "
+                f"temporal-F_c target was computed under. The two sides would use different sample "
+                f"sets or filters and fc_loss would be meaningless. Re-run "
+                f"ToUseOnBeagles/CalcTemporalFc.py and set FC_EMPIRICAL_SPEC to the hash it prints.")
+
     if ldc.spec_hash() != LD_EMPIRICAL_SPEC:
         raise ValueError(
             f"ld_common spec {ldc.spec_hash()} != {LD_EMPIRICAL_SPEC}, the spec the empirical LD "
@@ -406,8 +604,10 @@ def sample_prior():
         "total_migration": prior_distributions["total_migration"].rvs(),
         "pop": prior_distributions["pop"].rvs(),
         "numClusters": prior_distributions["numClusters"].rvs(),
-        "mutation_rate": prior_distributions["mutation_rate"].rvs(),
-        # recombination_rate is fixed (DEFAULT_RECOMBINATION_RATE) -- not sampled (5.4).
+        # mutation_rate and recombination_rate are both FIXED, not sampled. They stay in the
+        # returned dict (and therefore in the CSV) so the output layout is unchanged and every
+        # row still records the scale it was run at (CLAUDE.md 10, 7.9.3).
+        "mutation_rate": DEFAULT_MUTATION_RATE,
     }
 
 
@@ -497,11 +697,9 @@ def run_sims_from_csv(input_csv, output_csv="../out/abc_results.csv", simToRun=-
     detailed_results_dir.mkdir(parents=True, exist_ok=True)
     print(f"Detailed results will be saved to: {detailed_results_dir}")
     
-    # Define CSV columns
+    # Columns come from CSV_FIELDNAMES -- ONE definition, see the top of this module.
     # No total_loss: the combined standardized distance is built offline by abc_standardize.py.
-    # pi/fst are FITTED; ibd/dxy/genrel are DIAGNOSTIC.
-    fieldnames = ["iteration", "m", "total_migration", "pop", "numClusters", "mutation_rate", "recombination_rate",
-                  "pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+    fieldnames = CSV_FIELDNAMES
     
     with open(output_csv, mode='a', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -535,39 +733,18 @@ def run_sims_from_csv(input_csv, output_csv="../out/abc_results.csv", simToRun=-
                 iteration_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Keep raw features so offline sigma has values, not just losses.
-                for year in ["2015", "2019", "2023"]:
-                    # "ld" added 2026-09-07 -- it is a FITTED statistic, so its raw curves belong
-                    # in the store alongside the others (posterior-predictive checks, re-scoring
-                    # a batch under a different LD_MIN_BIN without re-simulating).
-                    for stat in ["diversities", "divergences", "fst", "relatedness", "ld"]:
-                        src = Path(f"../data/Output_Data/{stat}_{year}.csv")
-                        if src.exists():
-                            shutil.copy2(src, iteration_dir / f"{stat}_{year}.csv")
+                _copy_raw_features(iteration_dir)
                 
-                # Prepare row for CSV
-                row = {
-                    "iteration": iteration,
-                    "m": parameters["m"],
-                    "total_migration": parameters.get("total_migration", 0.05),
-                    "pop": parameters["pop"],
-                    "numClusters": parameters["numClusters"],
-                    "mutation_rate": parameters["mutation_rate"],
-                    "recombination_rate": parameters.get("recombination_rate", DEFAULT_RECOMBINATION_RATE),
-                    "pi_loss": losses["pi_loss"],
-                    "fst_loss": losses["fst_loss"],
-                    "ld_loss": losses["ld_loss"],
-                    "ibd_loss": losses["ibd_loss"],
-                    "dxy_loss": losses["dxy_loss"],
-                    "genrel_loss": losses["genrel_loss"]
-                }
+                # Built from the shared lists, so a new statistic cannot be silently omitted
+                # (CLAUDE.md 10.2). _build_row raises on a missing key rather than letting
+                # DictWriter write an empty cell.
+                row = _build_row(iteration, parameters, losses)
                 
                 # Append to CSV
                 writer.writerow(row)
                 csvfile.flush()  # Ensure data is written immediately
                 
-                print(f"  pi={losses['pi_loss']:.4g} fst={losses['fst_loss']:.4g} "
-                      f"ld={losses['ld_loss']:.4g} ibd={losses['ibd_loss']:.4g} "
-                      f"dxy={losses['dxy_loss']:.4g} genrel={losses['genrel_loss']:.4g}")
+                print("  " + _format_losses(losses))
                 print(f"  Detailed results saved to: {iteration_dir}")
                 
             except Exception as e:
@@ -600,11 +777,9 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
     detailed_results_dir = Path(output_csv).parent / "detailed_sim_results"
     detailed_results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Define CSV columns
+    # Columns come from CSV_FIELDNAMES -- ONE definition, see the top of this module.
     # No total_loss: the combined standardized distance is built offline by abc_standardize.py.
-    # pi/fst are FITTED; ibd/dxy/genrel are DIAGNOSTIC.
-    fieldnames = ["iteration", "m", "total_migration", "pop", "numClusters", "mutation_rate", "recombination_rate",
-                  "pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+    fieldnames = CSV_FIELDNAMES
 
     with open(output_csv, mode='a', newline='', encoding='utf-8') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -634,39 +809,18 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
                 # Keep this trial's raw features for offline standardization.
                 iteration_dir = detailed_results_dir / f"run{iteration + 1}"
                 iteration_dir.mkdir(parents=True, exist_ok=True)
-                for year in ["2015", "2019", "2023"]:
-                    # "ld" added 2026-09-07 -- it is a FITTED statistic, so its raw curves belong
-                    # in the store alongside the others (posterior-predictive checks, re-scoring
-                    # a batch under a different LD_MIN_BIN without re-simulating).
-                    for stat in ["diversities", "divergences", "fst", "relatedness", "ld"]:
-                        src = Path(f"../data/Output_Data/{stat}_{year}.csv")
-                        if src.exists():
-                            shutil.copy2(src, iteration_dir / f"{stat}_{year}.csv")
+                _copy_raw_features(iteration_dir)
 
-                # Prepare row for CSV
-                row = {
-                    "iteration": iteration,
-                    "m": parameters["m"],
-                    "total_migration": parameters.get("total_migration", 0.05),
-                    "pop": parameters["pop"],
-                    "numClusters": parameters["numClusters"],
-                    "mutation_rate": parameters["mutation_rate"],
-                    "recombination_rate": parameters.get("recombination_rate", DEFAULT_RECOMBINATION_RATE),
-                    "pi_loss": losses["pi_loss"],
-                    "fst_loss": losses["fst_loss"],
-                    "ld_loss": losses["ld_loss"],
-                    "ibd_loss": losses["ibd_loss"],
-                    "dxy_loss": losses["dxy_loss"],
-                    "genrel_loss": losses["genrel_loss"]
-                }
+                # Built from the shared lists, so a new statistic cannot be silently omitted
+                # (CLAUDE.md 10.2). _build_row raises on a missing key rather than letting
+                # DictWriter write an empty cell.
+                row = _build_row(iteration, parameters, losses)
 
                 # Append to CSV
                 writer.writerow(row)
                 csvfile.flush()  # Ensure data is written immediately
 
-                print(f"  pi={losses['pi_loss']:.4g} fst={losses['fst_loss']:.4g} "
-                      f"ld={losses['ld_loss']:.4g} ibd={losses['ibd_loss']:.4g} "
-                      f"dxy={losses['dxy_loss']:.4g} genrel={losses['genrel_loss']:.4g}")
+                print("  " + _format_losses(losses))
 
             except Exception as e:
                 print(f"  Error in iteration {iteration}: {e}")

@@ -9,6 +9,9 @@ import numpy as np
 import csv
 
 import ld_common as ldc
+import fc_common as fcc
+import scale_constants as sc
+import recapitate_util
 
 # LD is ON as of 2026-09-07. Both preconditions are settled: the empirical side has been run so
 # the bin scale is measured (CLAUDE.md 7.5.1), and the per-trial cost is 20.6 s -- 0.5% of a
@@ -23,6 +26,15 @@ COMPUTE_LD = bool(int(__import__("os").environ.get("COMPUTE_LD", "1")))
 # the same at its own thinning boundary (7.5.1). NOT part of spec_hash -- the two sides may thin
 # differently without becoming incomparable.
 LD_THIN = 25
+
+# Temporal F_c (CLAUDE.md 7.9.4, 7.9.6, 7.9.8, 7.2.2F). OFF until the empirical target matches the
+# current fc_common spec: ToUseOnBeagles/CalcTemporalFc.py must be re-run under it (the target in
+# data/empiricalStats/ predates fc_common.EXCLUDED_SAMPLES) and ABCAnalysisNoRedis.FC_EMPIRICAL_SPEC
+# updated. It also needs data/empiricalStats/miscall_rates.csv (kinship_correct.py --write-rates).
+# Turning this on without either makes the run raise, which is deliberate: a fitted statistic with
+# no valid target is worse than no statistic (CLAUDE.md 10).
+# ABCAnalysisNoRedis reads the SAME environment variable; the two must agree.
+COMPUTE_FC = bool(int(__import__("os").environ.get("COMPUTE_FC", "0")))
 
 
 def _real_sample_sizes(year):
@@ -69,6 +81,137 @@ def _subsample_nodes(ts, pop_idx, time, n_diploid, rng):
     if len(inds) > n_diploid:
         inds = rng.choice(inds, size=n_diploid, replace=False)
     return np.array(sorted(nd for i in inds for nd in by_ind[i]), dtype=np.int64)
+
+
+def _subsample_individuals(ts, pop_idx, time, n_diploid, rng):
+    '''Like _subsample_nodes, but keeps the pairing: an (n, 2) array of each drawn diploid's two
+    sample nodes. Temporal F_c needs it to imitate the empirical per-individual genotype miscalls
+    (fc_common.apply_miscall). Returns every individual if the deme holds fewer than requested.
+    '''
+    by_ind = {}
+    for nd in ts.samples(population=pop_idx, time=time):
+        by_ind.setdefault(ts.node(nd).individual, []).append(int(nd))
+    inds = np.array(sorted(by_ind), dtype=np.int64)
+    if len(inds) > n_diploid:
+        inds = rng.choice(inds, size=n_diploid, replace=False)
+    out = np.array([sorted(by_ind[i]) for i in inds], dtype=np.int64)
+    if out.ndim != 2 or out.shape[1] != 2:
+        raise ValueError(f"deme {pop_idx} at time {time}: sampled individuals are not all diploid")
+    return out
+
+
+def _nearest_cluster_rows(cluster_data):
+    """For each field coordinate, the row of the NEAREST cluster centroid.
+
+    Deliberately NOT the production site->deme assignment. That mapping is one-to-one per year and
+    puts the SAME PHYSICAL FIELD IN DIFFERENT DEMES IN DIFFERENT YEARS (CLAUDE.md 7.9.2 -- measured:
+    Arlington is cluster 10 in 2015 and 21 in 2019). F_c compares one field to itself across time,
+    so it needs a deme that does not move; the nearest centroid is that, and it is year-independent
+    by construction. Matches diagnostics/temporal_fc.py --deme-choice nearest.
+    """
+    lat = cluster_data["Latitude"].to_numpy()
+    lon = cluster_data["Longitude"].to_numpy()
+
+    def nearest(la, lo):
+        p = math.pi / 180
+        a = (0.5 - np.cos((lat - la) * p) / 2
+             + np.cos(la * p) * np.cos(lat * p) * (1 - np.cos((lon - lo) * p)) / 2)
+        return int(np.argmin(a))          # argmin of the haversine argument == argmin of distance
+
+    return nearest
+
+
+def calculate_temporal_fc(ts, cluster_data, output_path, rng=None):
+    """Waples (1989) F_c for every field sequenced in two different years.
+
+    THE ONLY STATISTIC HERE THAT LOOKS ACROSS TIMEPOINTS. The other five compare demes within one
+    year; this one compares one deme to ITSELF 8 or 16 generations earlier, which is why it escapes
+    the information budget that caps everything else (CLAUDE.md 7.9.1): a frequency CHANGE cancels
+    the shared ancestral phase exactly, so F_c is 100% forward-phase against 0.5-7% for pi and F_st.
+
+    Measured selectivity (7.9.8), each statistic in units of its own replicate noise floor:
+    F_c moves 11.1 sd with POPMULT and 2.6 sd with the dispersal kernel; F_st moves 13.2 and 41.0.
+    So F_c tracks N 4.3x more than the nuisance and F_st tracks the nuisance 3x more than N.
+
+    SUBSAMPLED to each field's real n_i, like calculate_ld_decay and unlike the other four. Not for
+    r^2's reason (a 1/n bias) but for the ascertainment one: F_c carries a 1/(2*S_a)+1/(2*S_b)
+    pedestal ~0.14 at n=7, and the MAF filter conditions on the very quantity forming F_c's
+    denominator. Neither is corrected -- both are REPRODUCED so they cancel in
+    |F_c,sim - F_c,obs| (invariant 1). That only works if n matches exactly.
+
+    Spec (MAF, pair list, biallelic rule, excluded samples) comes from fc_common, which the
+    empirical side imports too; a spec mismatch means the two F_c values are not comparable.
+
+    THE EMPIRICAL GENOTYPE MISCALLS ARE IMITATED HERE (CLAUDE.md 7.2.2F). Every real sample has a
+    per-individual rate at which heterozygotes were called homozygous (median ~0.24), and that
+    raises F_c by ~+0.035 -- 5.8x the whole POPMULT 2000->5000 signal, measured by
+    diagnostics/fc_miscall.py. So each simulated individual is given the rate of one of its field's
+    real retained samples (random order) and fc_common.apply_miscall is run on its genotypes before
+    frequencies are taken. Rates come from data/empiricalStats/miscall_rates.csv; a missing file
+    raises rather than silently producing clean-genotype F_c.
+
+    ONE DRAW PER FIELD-YEAR: the empirical side scores a field's same beetles in every pair that
+    field belongs to, and a draw's miscall rates are that field's own.
+    """
+    if rng is None:
+        rng = np.random.default_rng(np.random.randint(0, 2**31 - 1))
+
+    gd = Path("../data/Genetic_Data")
+    popfiles = {y: gd / f"popFile{y}" for y in fcc.YEAR_TIME}
+    pairs, _ = fcc.matched_field_pairs(
+        {y: gd / f"specifier_matrix_{y}.csv" for y in fcc.YEAR_TIME}, popfiles)
+
+    rates_path = Path("../data/empiricalStats") / fcc.MISCALL_RATES_FILE
+    if not rates_path.exists():
+        raise FileNotFoundError(
+            f"{rates_path} is missing. Simulated F_c must imitate the empirical genotype miscalls, "
+            f"which move it ~6x its POPMULT signal (CLAUDE.md 7.2.2F). Run "
+            f"diagnostics/kinship_correct.py --write-rates.")
+    rates = fcc.read_miscall_rates(rates_path)
+
+    nearest = _nearest_cluster_rows(cluster_data)
+    spec = {y: fcc.specifier_rows(y, gd / f"specifier_matrix_{y}.csv") for y in fcc.YEAR_TIME}
+
+    fields, meta = {}, []                     # (year, site) -> ((n, 2) node array, miscall rates)
+    for p in pairs:
+        _, la, lo = spec[p["year_a"]][p["row_a"]]
+        deme = nearest(la, lo)
+        for side in ("a", "b"):
+            key = (p[f"year_{side}"], p[f"site_{side}"])
+            if key not in fields:
+                inds = _subsample_individuals(ts, deme, fcc.YEAR_TIME[key[0]], p[f"n_{side}"], rng)
+                e = rng.permutation(fcc.field_miscall_rates(rates, popfiles[key[0]], key[1]))
+                fields[key] = (inds, e[:len(inds)])
+        meta.append((p, deme))
+
+    uniq = sorted({int(n) for inds, _ in fields.values() for n in inds.ravel()})
+    pos = {n: i for i, n in enumerate(uniq)}
+    G = ts.genotype_matrix(samples=np.array(uniq, dtype=np.int64))
+    # frequency of ALLELE 1, plus "does an allele index above 1 appear". NOT `G > 0`: that folds
+    # every derived allele together, which is the mismatch the round-trip test caught between the
+    # two sides (7.9.8C). 7.1% of sites in a real tree are multi-allelic. Both are taken AFTER the
+    # miscalls, because the empirical side only ever sees miscalled genotypes.
+    freq = {}
+    for key, (inds, e) in fields.items():
+        cols = np.array([[pos[int(a)], pos[int(b)]] for a, b in inds], dtype=np.int64)
+        sub = fcc.apply_miscall(G[:, cols], e, rng)                    # (sites, n, 2)
+        freq[key] = ((sub == 1).mean(axis=(1, 2), dtype=np.float64), (sub > 1).any(axis=(1, 2)))
+    del G
+
+    rows = []
+    for p, deme in meta:
+        x, mx = freq[(p["year_a"], p["site_a"])]
+        y, my = freq[(p["year_b"], p["site_b"])]
+        fc, ped, _, nloc = fcc.waples_fc(x, y, p["n_a"], p["n_b"], p["t"], valid=~mx & ~my)
+        rows.append({**p, "deme": deme, "fc": fc, "pedestal": ped, "n_loci": nloc})
+
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["site_a", "site_b", "t", "n_a", "n_b", "fc", "pedestal", "n_loci"])
+        for r in rows:
+            w.writerow([r["site_a"], r["site_b"], r["t"], r["n_a"], r["n_b"],
+                        f"{r['fc']:.10g}", f"{r['pedestal']:.10g}", r["n_loci"]])
+    return rows
 
 
 def calculate_ld_decay(ts, genome_indicies, time, year, output_path, rng=None, thin=1):
@@ -240,7 +383,8 @@ def calculate_diversity_and_divergence(ts, genome_indicies, time, output_diversi
 
 
 
-def analyze_tree_sequence(mutation_rate=None, recombination_rate=None, ancestral_Ne=6700):
+def analyze_tree_sequence(mutation_rate=None, recombination_rate=None,
+                          ancestral_Ne=sc.ANCESTRAL_NE):
     '''
     This function analyzes the tree sequence file generated by the SLiM simulation by
     calculating diversity and divergence statistics before and after recapitation and mutation addition.
@@ -249,16 +393,17 @@ def analyze_tree_sequence(mutation_rate=None, recombination_rate=None, ancestral
     mutation_rate, recombination_rate: REQUIRED, no defaults. See the guard below.
 
     ancestral_Ne: effective size of the panmictic ancestral population used in recapitation.
-    Fixed empirical point estimate (6700); exposed here for sensitivity analysis only, NOT
-    inferred -- it is confounded with mu via pi = 4*Ne*mu. See CLAUDE.md 5.1.
+    ancestral_Ne: DERIVED from the declared Q and the measured mu (scale_constants.py), not a
+    free parameter -- it is confounded with mu via pi = 4*Ne*mu, so inferring it would build a
+    second ridge. Exposed here for sensitivity analysis only. See CLAUDE.md 6.1, 7.9.3.
     '''
     # No defaults: these set the diversity and linkage scale of every output file, and the files
     # record no scale, so a silent fallback is worse than a crash (CLAUDE.md 10.1).
     if mutation_rate is None or recombination_rate is None:
         raise ValueError(
             "analyze_tree_sequence() requires explicit mutation_rate and recombination_rate. "
-            "Use ABCAnalysisNoRedis.DEFAULT_MUTATION_RATE (4.646e-7) and "
-            "DEFAULT_RECOMBINATION_RATE (2.75e-6). See CLAUDE.md 6.1.1 and 6.3.")
+            "Use ABCAnalysisNoRedis.DEFAULT_MUTATION_RATE / DEFAULT_RECOMBINATION_RATE, "
+            "or scale_constants directly. See CLAUDE.md 7.9.3 and scale_constants.py.")
 
     
     # Load the cluster_data CSV file
@@ -297,7 +442,12 @@ def analyze_tree_sequence(mutation_rate=None, recombination_rate=None, ancestral
     ts = tskit.load(Path("../out/simTreeSeq.trees"))
     
 
-    ts = pyslim.recapitate(ts, recombination_rate=recombination_rate, ancestral_Ne=ancestral_Ne)
+    # recapitate_util, NOT pyslim directly: msprime caps a population_split at 100 derived
+    # populations, which is the real reason numClusters has been {1,2,3} (x33 = 99 demes).
+    # It delegates to pyslim unchanged at <= 99 demes, so this is a no-op at the current
+    # prior and only matters if the deme count is raised (CLAUDE.md 7.9.5).
+    ts = recapitate_util.recapitate(ts, recombination_rate=recombination_rate,
+                                    ancestral_Ne=ancestral_Ne)
     
     
     print("Simplifying tree sequence...")
@@ -357,4 +507,14 @@ def analyze_tree_sequence(mutation_rate=None, recombination_rate=None, ancestral
                 ts, gidx, time=t, year=year,
                 output_path=Path(f"../data/Output_Data/ld_{year}.csv"), thin=LD_THIN)
             ldc.report_halfway(s, c, prefix=f"    {year}: ")
+
+    if COMPUTE_FC:
+        print(f"Temporal F_c (fc_common spec {fcc.spec_hash()}) -- "
+              f"the empirical side must print the same hash...")
+        rows = calculate_temporal_fc(ts, cluster_data,
+                                     output_path=Path("../data/Output_Data/temporal_fc.csv"))
+        pooled = fcc.pool_by_gap(rows)
+        for key in sorted(pooled):
+            print(f"    {key:>5}: F_c = {pooled[key]['fc_mean']:.5f} "
+                  f"over {pooled[key]['n_pairs']} field pairs")
     

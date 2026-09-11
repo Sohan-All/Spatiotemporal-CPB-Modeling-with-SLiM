@@ -6,6 +6,12 @@ branch_div isolates what the DEMOGRAPHY is doing with no mutation-rate confound.
 
 Fst is Hudson, matching production (CLAUDE.md 6.7).
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import scale_constants as _sc
+import recapitate_util as _ru
+
 import argparse, json
 from pathlib import Path
 
@@ -29,8 +35,8 @@ p = argparse.ArgumentParser()
 p.add_argument("--tag", required=True)
 p.add_argument("--outdir", default="../out")
 p.add_argument("--mu", type=float, default=2.1e-9)
-p.add_argument("--recap-rho", type=float, default=2.75e-6)
-p.add_argument("--anc-ne", type=float, default=6700)
+p.add_argument("--recap-rho", type=float, default=_sc.RECOMBINATION_RATE)
+p.add_argument("--anc-ne", type=float, default=_sc.ANCESTRAL_NE)
 p.add_argument("--times", default="16,8,0")
 p.add_argument("--seed", type=int, default=1)
 p.add_argument("--label", default=None)
@@ -41,7 +47,7 @@ times = dict(zip(["2015", "2019", "2023"], [int(x) for x in a.times.split(",")])
 label = a.label or a.tag
 
 ts = tskit.load(str(outdir / f"trees_{a.tag}.trees"))
-ts = pyslim.recapitate(ts, recombination_rate=a.recap_rho, ancestral_Ne=a.anc_ne,
+ts = _ru.recapitate(ts, recombination_rate=a.recap_rho, ancestral_Ne=a.anc_ne,
                        random_seed=a.seed)
 
 cd = pd.read_csv(outdir / f"cluster_data_{a.tag}.csv")

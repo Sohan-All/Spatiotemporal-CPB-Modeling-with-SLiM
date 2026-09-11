@@ -12,6 +12,11 @@ Reads the JSONL written by mu_calibrate.py and prints:
 
 Usage:  python mu_calibrate_summary.py [--in ../out/mu_calibration.jsonl]
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import scale_constants as _sc
+
 import argparse
 import json
 from pathlib import Path
@@ -20,7 +25,7 @@ import numpy as np
 
 YEARS = ["2015", "2019", "2023"]
 FORWARD_GENS = 324          # CPBSampleSim*.slim run length (6.1)
-ANC_NE = 6700
+ANC_NE = _sc.ANCESTRAL_NE
 CEILING = 2 * (FORWARD_GENS + 2 * ANC_NE)   # 2*E[T_pair] with no forward coalescence
 
 

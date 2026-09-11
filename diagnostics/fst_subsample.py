@@ -42,6 +42,12 @@ Usage (run from diagnostics/ or Python_Code/ -- paths are ../data, ../out):
     python fst_subsample.py --reps 100 --save-ts ../out/fst_sub_mutated.trees
     python fst_subsample.py --reps 100 --load-ts ../out/fst_sub_mutated.trees
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import scale_constants as _sc
+import recapitate_util as _ru
+
 import argparse
 import gc
 import json
@@ -60,8 +66,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "Python_Code"))
 import ABCAnalysisNoRedis as ABC  # noqa: E402  (real _read_vector/_read_matrix/get_keep_mask)
 
 TIMES = {"2015": 16, "2019": 8, "2023": 0}
-ANCESTRAL_NE = 6700
-DEFAULT_RECOMB = 2.75e-6
+ANCESTRAL_NE = _sc.ANCESTRAL_NE
+DEFAULT_RECOMB = _sc.RECOMBINATION_RATE
 DEFAULT_MU = 4.646e-7   # calibrated at POPMULT=5000 (6.1.1); mu-invariance of Fst is the point
 
 try:
@@ -121,7 +127,7 @@ def build_mutated_ts(recomb, mu, seed, save_path=None):
     t0 = time.perf_counter()
     print(f"[{time.strftime('%H:%M:%S')}] recapitating anc_ne={ANCESTRAL_NE} ...", flush=True)
     ts = tskit.load(Path("../out/simTreeSeq.trees"))
-    ts = pyslim.recapitate(ts, recombination_rate=recomb, ancestral_Ne=ANCESTRAL_NE,
+    ts = _ru.recapitate(ts, recombination_rate=recomb, ancestral_Ne=ANCESTRAL_NE,
                            random_seed=seed)
     print(f"[{time.strftime('%H:%M:%S')}] recap {time.perf_counter()-t0:.1f}s "
           f"peak={peak_mb():.0f}MB edges={ts.num_edges}", flush=True)

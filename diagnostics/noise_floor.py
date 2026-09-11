@@ -43,6 +43,11 @@ out/noise_floor/rep<N>/ so nothing has to be re-run to compute a different summa
 Usage (run from diagnostics/ -- paths are ../data, ../out):
     python noise_floor.py --popmult 5000 --reps 3
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import scale_constants as _sc
+
 import argparse
 import csv
 import itertools
@@ -304,9 +309,9 @@ if __name__ == "__main__":
     p.add_argument("--seed0", type=int, default=1001,
                    help="first SLiM seed; replicate r uses seed0+r. MUST NOT overlap between "
                         "jobs -- repeated seeds re-draw the same genealogy and understate the floor")
-    p.add_argument("--mu", type=float, default=4.646e-7)
-    p.add_argument("--recomb", type=float, default=2.75e-6)
-    p.add_argument("--anc-ne", type=int, default=6700)
+    p.add_argument("--mu", type=float, default=_sc.MUTATION_RATE)
+    p.add_argument("--recomb", type=float, default=_sc.RECOMBINATION_RATE)
+    p.add_argument("--anc-ne", type=int, default=_sc.ANCESTRAL_NE)
     p.add_argument("--fixed-tree", action="store_true",
                    help="reuse out/simTreeSeq.trees; vary recapitation+mutation only (PARTIAL "
                         "floor -- required where slim.exe is blocked, see docstring)")

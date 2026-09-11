@@ -33,6 +33,12 @@ Usage (run from diagnostics/ or Python_Code/ -- paths are ../data, ../out):
     python mu_calibrate.py --popmult 5000                  # SLiM + recapitate + calibrate
     python mu_calibrate.py --popmult 5000 --skip-slim      # reuse out/simTreeSeq.trees
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import scale_constants as _sc
+import recapitate_util as _ru
+
 import argparse
 import gc
 import json
@@ -59,7 +65,7 @@ import ABCAnalysisNoRedis as ABC  # noqa: E402  (for _read_vector / _read_matrix
 KMEANS_SEED = 42
 TIMES = {"2015": 16, "2019": 8, "2023": 0}
 ANCESTRAL_NE = 6700          # fixed, NOT inferred (6.1) -- calibration is conditional on it
-DEFAULT_RECOMB = 2.75e-6
+DEFAULT_RECOMB = _sc.RECOMBINATION_RATE
 
 try:
     import psutil
@@ -192,7 +198,7 @@ def main(a):
     print(f"[{time.strftime('%H:%M:%S')}] recapitating popmult={a.popmult} "
           f"anc_ne={ANCESTRAL_NE} ...", flush=True)
     ts = tskit.load(Path("../out/simTreeSeq.trees"))
-    ts = pyslim.recapitate(ts, recombination_rate=a.recomb, ancestral_Ne=ANCESTRAL_NE,
+    ts = _ru.recapitate(ts, recombination_rate=a.recomb, ancestral_Ne=ANCESTRAL_NE,
                            random_seed=a.seed)
     rec["recap_s"] = time.perf_counter() - t0
     rec["recap_peak_mb"] = peak_mb()

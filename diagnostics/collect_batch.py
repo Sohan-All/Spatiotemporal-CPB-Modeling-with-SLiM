@@ -43,6 +43,11 @@ Usage:
     python collect_batch.py --no-write             # report only, touch nothing
     python collect_batch.py --raw-dir ../out/batch2_raw --out ../out/abc_results_b2.csv
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import ABCAnalysisNoRedis as ABC
+
 import argparse
 import csv
 import math
@@ -60,25 +65,42 @@ from abc_standardize import robust_sigma  # noqa: E402  -- the EXACT sigma the p
 # This constant is the mechanical guard against pooling. Because it is matched EXACTLY, a batch-1
 # file and a post-ld_loss file cannot both be read by the same invocation -- one of them always
 # fails the header check. Keep it that way: do not "helpfully" accept both layouts.
-EXPECTED_FIELDS = ["iteration", "m", "total_migration", "pop", "numClusters",
-                   "mutation_rate", "recombination_rate",
-                   "pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+# Derived from ABCAnalysisNoRedis, which defines the statistic set ONCE (CLAUDE.md 10.2). This
+# file was the FOURTH place that bug class showed up: ld_loss was in EXPECTED_FIELDS but missing
+# from LOSSES and FITTED, so the pilot parsed perfectly and every analysis section silently
+# omitted the statistic the batch existed to measure.
+#
+# The match stays EXACT, deliberately -- a batch-1 file (12 cols), a pilot file (13) and an
+# fc-enabled file (14) must not be poolable. Consequence: to analyse a batch that carries
+# fc_loss, set COMPUTE_FC=1 here too, exactly as the run did.
+EXPECTED_FIELDS = list(ABC.CSV_FIELDNAMES)
 
 # The pre-2026-09-07 layout (batch 1: no ld_loss). Recognised ONLY so the error message can say
 # which batch a file came from instead of "header does not match".
 LEGACY_FIELDS_NO_LD = [f for f in EXPECTED_FIELDS if f != "ld_loss"]
 
-LOSSES = ["pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
+LOSSES = list(ABC.LOSS_NAMES)
 # 7: the fitted set this batch is being asked to weight. ld_loss is NOT yet in
 # abc_standardize.py::FITTED_STATS -- deriving its weight here is the prerequisite
 # for putting it there (7.5 step 5). Keep this list in step with EXPECTED_FIELDS:
 # a statistic missing here is silently dropped from every section below.
+# Hand-set: which statistics ENTER D is a judgement, not a consequence of what is computed.
+# ld_loss is computed and NOT fitted (7.8); fc_loss is computed and not yet fitted (7.9.8E).
+# Validated against LOSSES below so a rename cannot leave a dangling name.
 FITTED = ["pi_loss", "fst_loss", "ld_loss"]
+_unknown = [f for f in FITTED if f not in LOSSES]
+if _unknown:
+    raise SystemExit(f"FITTED names not in LOSSES: {_unknown}")
 PARAMS = ["pop", "total_migration", "m", "numClusters", "mutation_rate"]
 
 # 7.3 replicate noise floor: run-to-run mean|diff| over 3 reps at POPMULT=5000, identical params.
 NOISE_FLOOR = {"pi_loss": 0.00240, "fst_loss": 0.00017, "ld_loss": 0.00074,
-               "ibd_loss": 0.00014, "dxy_loss": 0.00005, "genrel_loss": 0.00001}
+               "ibd_loss": 0.00014, "dxy_loss": 0.00005, "genrel_loss": 0.00001,
+               "fc_loss": 0.00157}
+# fc_loss: 7.9.8, four seeds at POPMULT=2000 in the n_real arm (the one that is measurable),
+# all three dice re-rolled, mean pairwise |diff| to match the convention of the entries above.
+# This is a floor on the STATISTIC, not yet on the loss -- fc_loss did not exist when it was
+# measured. The two coincide away from zero, since the observed side is a constant.
 # ld_loss: 7.5.5, four seeds at POPMULT=1500 (0.00299/0.00348/0.00411/0.00426), all three
 # dice re-rolled. Same mean-pairwise-|diff| convention as the 7.3 entries. Measured at ONE
 # POPMULT, and at the sweep MINIMUM where the level is lowest -- so it is a floor for the
@@ -431,8 +453,19 @@ def report_decomposition(A):
     print("  parameter costs), so they do not sum to R2_tot when parameters are correlated.")
     print()
     n = len(A["pop"])
-    X = np.column_stack([np.ones(n)] + [_zrank(A[p]) for p in PARAMS])
-    hdr = f"  {'loss':12s} {'R2_tot':>7s} " + " ".join(f"{p[:10]:>11s}" for p in PARAMS)
+    # A parameter that was FIXED for this batch has zero rank variance, so _zrank divides by 0
+    # and the design matrix goes singular. Drop it rather than crash: mutation_rate became a
+    # constant on 2026-09-09 (ABCAnalysisNoRedis.py), so batch 3 onward has four free parameters
+    # and pre-2026-09-09 batches still have five. Report which, so a SILENTLY fixed parameter
+    # (a bug) is as visible as a deliberately fixed one.
+    params = [p for p in PARAMS if float(np.std(_rank(A[p]))) > 0]
+    fixed = [p for p in PARAMS if p not in params]
+    if fixed:
+        print("  FIXED in this batch (zero variance, excluded from the regression): " +
+              ", ".join(f"{p}={A[p][0]:.6g}" for p in fixed))
+        print()
+    X = np.column_stack([np.ones(n)] + [_zrank(A[p]) for p in params])
+    hdr = f"  {'loss':12s} {'R2_tot':>7s} " + " ".join(f"{p[:10]:>11s}" for p in params)
     print(hdr)
     print("  " + "-" * (len(hdr) - 2))
 
@@ -443,15 +476,15 @@ def report_decomposition(A):
         beta, *_ = np.linalg.lstsq(X, y, rcond=None)
         r2 = 1.0 - float(np.sum((y - X @ beta) ** 2)) / sst
         uniq = {}
-        for k, p_ in enumerate(PARAMS):
-            cols = [0] + [j + 1 for j in range(len(PARAMS)) if j != k]
+        for k, p_ in enumerate(params):
+            cols = [0] + [j + 1 for j in range(len(params)) if j != k]
             Xr = X[:, cols]
             b2, *_ = np.linalg.lstsq(Xr, y, rcond=None)
             uniq[p_] = r2 - (1.0 - float(np.sum((y - Xr @ b2) ** 2)) / sst)
-        demog = sum(max(0.0, uniq[p_]) for p_ in PARAMS if p_ != "mutation_rate")
+        demog = sum(max(0.0, uniq[p_]) for p_ in params if p_ != "mutation_rate")
         out[s] = {"r2": r2, "uniq": uniq, "demographic": demog,
-                  "nuisance": max(0.0, uniq["mutation_rate"])}
-        print(f"  {s:12s} {r2:7.3f} " + " ".join(f"{uniq[p_]:11.3f}" for p_ in PARAMS))
+                  "nuisance": max(0.0, uniq.get("mutation_rate", 0.0))}
+        print(f"  {s:12s} {r2:7.3f} " + " ".join(f"{uniq[p_]:11.3f}" for p_ in params))
 
     print()
     print(f"  {'loss':12s} {'demographic':>12s} {'mu-nuisance':>12s} {'unexplained':>12s}")

@@ -9,8 +9,10 @@ import CollectData
 import GenerateSimulationParams
 import GenerateClusterData
 import AnalyzeTreeSeq
+import scale_constants as sc
 
 import subprocess
+import math
 
 import warnings
 import platform
@@ -21,15 +23,18 @@ import sys
 # Fixed so cluster identity stays stable across ABC iterations.
 KMEANS_SEED = 42
 
-def main(num_clusters, migration_rates_modifier, population_modifier, total_migration=0.05, mutation_rate=None, recombination_rate=2.75e-6, ancestral_Ne=6700, silent=False):
+def main(num_clusters, migration_rates_modifier, population_modifier, total_migration=0.05,
+         mutation_rate=None, recombination_rate=None, ancestral_Ne=sc.ANCESTRAL_NE, silent=False):
     # No default for mutation_rate: it sets the diversity scale, so fail loudly rather than
     # silently reproduce a wrong one (CLAUDE.md 10.1).
-    if mutation_rate is None:
+    if mutation_rate is None or recombination_rate is None:
         raise ValueError(
-            "main() requires an explicit mutation_rate -- there is deliberately no default, "
-            "because mu sets the diversity scale and the old 5e-6 default is ~10.8x too large. "
-            "Pass ABCAnalysisNoRedis.DEFAULT_MUTATION_RATE (4.646e-7, calibrated at "
-            "POPMULT=5000; see CLAUDE.md 6.1.1).")
+            "main() requires explicit mutation_rate AND recombination_rate -- there are "
+            "deliberately no defaults, because they set the diversity and linkage scales and the "
+            "output files record no scale (CLAUDE.md 10.1). recombination_rate carried a "
+            "hardcoded 2.75e-6 until 2026-09-09, which 10.1 claimed had been removed and had not "
+            "(6.8.1). Pass ABCAnalysisNoRedis.DEFAULT_MUTATION_RATE / "
+            "DEFAULT_RECOMBINATION_RATE, or scale_constants directly.")
     #for cleanliness
     warnings.filterwarnings("ignore")
     
@@ -61,6 +66,29 @@ def main(num_clusters, migration_rates_modifier, population_modifier, total_migr
         
     #Generate migration rates based on the cluster distance matrix
     GenerateSimulationParams.determine_migration_rates(distances, total_migration=total_migration, scale=migration_rates_modifier, output_path=Path('../data/migration_rates.csv'))
+
+    # THE REAL CEILING ON DEME COUNT, and it is NOT recapitation (CLAUDE.md 7.9.5).
+    # CPBSampleSim*.slim line 30 does
+    #     sim.addSubpop("p"+i, asInteger(Average Count[i] * POPMULT / numSubpops))
+    # and SLiM refuses an empty subpopulation:
+    #     ERROR (Population::AddSubpopulation): subpopulation p38 empty.
+    # asInteger TRUNCATES, so any deme whose Average Count * POPMULT / numSubpops lands under 1.0
+    # kills the run -- after the forward sim has already been set up, with an error that names a
+    # SLiM subpop id and nothing about clusters. Measured: numClusters=200 at POPMULT=500 puts
+    # 2 of 200 demes under 1.0 and dies; the same 200 demes at POPMULT=2000 is fine.
+    # Note this couples numClusters and POPMULT: deme size falls as 1/numSubpops, so raising the
+    # deme count SHRINKS every deme unless POPMULT rises with it.
+    # Checked HERE, before SLiM, because the message SLiM gives is unactionable.
+    _ac = [c.data[0] for c in clusters]   # Average Count, as cluster_data_to_csv writes it
+    _min_size = min(_ac) * population_modifier / len(clusters)
+    if _min_size < 1.0:
+        _needed = math.ceil(len(clusters) / min(_ac))
+        raise ValueError(
+            f"numClusters={len(clusters)} with POPMULT={population_modifier} gives a smallest "
+            f"deme of {_min_size:.3f} individuals, which SLiM rejects as an empty subpopulation. "
+            f"Deme size is Average Count * POPMULT / numSubpops, so it falls as 1/numSubpops: "
+            f"this cluster layout needs POPMULT >= {_needed} at {len(clusters)} clusters. "
+            f"Raise POPMULT, or lower numClusters. See CLAUDE.md 7.9.5.")
     
     #Run the SLiM simulation to create the tree sequence
     if not silent:

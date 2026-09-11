@@ -25,6 +25,12 @@ Usage:
     python ridge_sweep.py --setup --popmult 500          # once: build .trees via the production path
     python ridge_sweep.py --anc-ne 6700                  # then one of these per ridge point
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / 'Python_Code'))
+import scale_constants as _sc
+import recapitate_util as _ru
+
 import argparse, json, math, platform, subprocess, sys, time, warnings
 from pathlib import Path
 
@@ -113,7 +119,7 @@ def run_point(anc_ne, mu, recomb, seed, outfile, popmult):
 
     t0 = time.perf_counter()
     ts = tskit.load(Path("../out/simTreeSeq.trees"))
-    ts = pyslim.recapitate(ts, recombination_rate=recomb, ancestral_Ne=anc_ne, random_seed=seed)
+    ts = _ru.recapitate(ts, recombination_rate=recomb, ancestral_Ne=anc_ne, random_seed=seed)
     rec["recap_s"] = time.perf_counter() - t0
     rec["recap_peak_mb"] = peak_mb()
     print(f"[{time.strftime('%H:%M:%S')}] recap done in {rec['recap_s']:.1f}s "
@@ -169,7 +175,7 @@ if __name__ == "__main__":
     p.add_argument("--num-clusters", type=int, default=33)
     p.add_argument("--anc-ne", type=float)
     p.add_argument("--mu", type=float, help="default: TARGET_PI/(4*anc_ne), i.e. stay on the ridge")
-    p.add_argument("--recomb", type=float, default=2.75e-6)
+    p.add_argument("--recomb", type=float, default=_sc.RECOMBINATION_RATE)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--out", default="../out/ridge_sweep.jsonl")
     a = p.parse_args()
