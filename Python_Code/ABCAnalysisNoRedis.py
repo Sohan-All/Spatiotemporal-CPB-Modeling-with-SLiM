@@ -100,11 +100,10 @@ LD_MIN_BIN = 1778
 # Checked once in getObservedData(), where it is cheap and fires before any trial runs.
 LD_EMPIRICAL_SPEC = "4d1d1d92b25b"
 
-# The fc_common spec the empirical temporal-F_c target was computed under. The target now in
-# data/empiricalStats/ predates fc_common.EXCLUDED_SAMPLES (CLAUDE.md 7.2.2F), so this stays at the
-# OLD hash -- and fc_loss raises -- until ToUseOnBeagles/CalcTemporalFc.py is re-run under the
-# current spec and this is updated to the hash that run prints.
-FC_EMPIRICAL_SPEC = "ee863fff3bbf"
+# The fc_common spec the empirical temporal-F_c target was computed under
+# (ToUseOnBeagles/CalcTemporalFc.py re-run 2026-09-12, with fc_common.EXCLUDED_SAMPLES applied,
+# CLAUDE.md 7.2.2H). Different spec on the two sides => fc_loss is meaningless, so it raises.
+FC_EMPIRICAL_SPEC = "49afd0877028"
 
 
 # ---------------------------------------------------------------------------

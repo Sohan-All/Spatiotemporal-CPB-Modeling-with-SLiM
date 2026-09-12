@@ -27,12 +27,12 @@ COMPUTE_LD = bool(int(__import__("os").environ.get("COMPUTE_LD", "1")))
 # differently without becoming incomparable.
 LD_THIN = 25
 
-# Temporal F_c (CLAUDE.md 7.9.4, 7.9.6, 7.9.8, 7.2.2F). OFF until the empirical target matches the
-# current fc_common spec: ToUseOnBeagles/CalcTemporalFc.py must be re-run under it (the target in
-# data/empiricalStats/ predates fc_common.EXCLUDED_SAMPLES) and ABCAnalysisNoRedis.FC_EMPIRICAL_SPEC
-# updated. It also needs data/empiricalStats/miscall_rates.csv (kinship_correct.py --write-rates).
-# Turning this on without either makes the run raise, which is deliberate: a fitted statistic with
-# no valid target is worse than no statistic (CLAUDE.md 10).
+# Temporal F_c (CLAUDE.md 7.9.4, 7.9.6, 7.9.8, 7.2.2F/H). OFF by default: the empirical target now
+# matches the current fc_common spec (re-run 2026-09-12), but no live trial, fc_loss floor or pilot
+# batch has run yet. It needs ABCAnalysisNoRedis.FC_EMPIRICAL_SPEC to match fc_common.spec_hash() and
+# data/empiricalStats/miscall_rates.csv (kinship_correct.py --write-rates). Turning this on without
+# either makes the run raise, which is deliberate: a fitted statistic with no valid target is worse
+# than no statistic (CLAUDE.md 10).
 # ABCAnalysisNoRedis reads the SAME environment variable; the two must agree.
 COMPUTE_FC = bool(int(__import__("os").environ.get("COMPUTE_FC", "0")))
 
