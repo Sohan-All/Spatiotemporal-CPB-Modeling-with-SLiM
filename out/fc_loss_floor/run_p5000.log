@@ -1,0 +1,78 @@
+POPMULT=5000.0 x5  m=5e-05 tm=0.05 demes=33  fc spec 49afd0877028  git aca8845
+
+=== rep 1/5  [20260912-165451] ===
+Simplifying tree sequence...
+Simulating mutations...
+LD decay (ld_common spec 4d1d1d92b25b) -- the empirical side must print the same hash...
+    2023: mean r^2 0.3989 -> 0.0803; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+    2019: mean r^2 0.3393 -> 0.0760; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+    2015: mean r^2 0.4200 -> 0.0965; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+Temporal F_c (fc_common spec 49afd0877028) -- the empirical side must print the same hash...
+      all: F_c = 0.19211 over 19 field pairs
+      t16: F_c = 0.19737 over 9 field pairs
+       t8: F_c = 0.18737 over 10 field pairs
+  11.9 min, peak python 3672 MB / children 831 MB
+  pi=0.02226 fst=0.008924 ld=0.007624 ibd=0.001319 dxy=0.0002624 genrel=2.589e-05 fc=0.005931
+  pooled sim F_c t8=0.18737  t16=0.19737   obs t8=0.18463  t16=0.18825
+
+=== rep 2/5  [20260912-170642] ===
+Simplifying tree sequence...
+Simulating mutations...
+LD decay (ld_common spec 4d1d1d92b25b) -- the empirical side must print the same hash...
+    2023: mean r^2 0.2579 -> 0.0729; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+    2019: mean r^2 0.2558 -> 0.0783; crosses halfway in bin 178-316 bp   [spec 4d1d1d92b25b]
+    2015: mean r^2 0.2815 -> 0.0972; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+Temporal F_c (fc_common spec 49afd0877028) -- the empirical side must print the same hash...
+      all: F_c = 0.19423 over 19 field pairs
+      t16: F_c = 0.20010 over 9 field pairs
+       t8: F_c = 0.18895 over 10 field pairs
+  11.8 min, peak python 2495 MB / children 832 MB
+  pi=0.0239 fst=0.008723 ld=0.007741 ibd=0.00117 dxy=0.000316 genrel=2.524e-05 fc=0.008084
+  pooled sim F_c t8=0.18895  t16=0.20010   obs t8=0.18463  t16=0.18825
+
+=== rep 3/5  [20260912-171829] ===
+Simplifying tree sequence...
+Simulating mutations...
+LD decay (ld_common spec 4d1d1d92b25b) -- the empirical side must print the same hash...
+    2023: mean r^2 0.4761 -> 0.0791; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+    2019: mean r^2 0.5211 -> 0.0777; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+    2015: mean r^2 0.5239 -> 0.0962; crosses halfway in bin 56-100 bp   [spec 4d1d1d92b25b]
+Temporal F_c (fc_common spec 49afd0877028) -- the empirical side must print the same hash...
+      all: F_c = 0.19087 over 19 field pairs
+      t16: F_c = 0.19541 over 9 field pairs
+       t8: F_c = 0.18678 over 10 field pairs
+  16.8 min, peak python 1516 MB / children 856 MB
+  pi=0.02393 fst=0.008811 ld=0.007014 ibd=0.001305 dxy=0.0003148 genrel=2.582e-05 fc=0.004656
+  pooled sim F_c t8=0.18678  t16=0.19541   obs t8=0.18463  t16=0.18825
+
+=== rep 4/5  [20260912-173515] ===
+Simplifying tree sequence...
+Simulating mutations...
+LD decay (ld_common spec 4d1d1d92b25b) -- the empirical side must print the same hash...
+    2023: mean r^2 0.2494 -> 0.0804; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+    2019: mean r^2 0.2450 -> 0.0798; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+    2015: mean r^2 0.2752 -> 0.0937; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+Temporal F_c (fc_common spec 49afd0877028) -- the empirical side must print the same hash...
+      all: F_c = 0.18941 over 19 field pairs
+      t16: F_c = 0.19363 over 9 field pairs
+       t8: F_c = 0.18561 over 10 field pairs
+  16.0 min, peak python 2309 MB / children 837 MB
+  pi=0.02289 fst=0.009232 ld=0.006973 ibd=0.00141 dxy=0.0001372 genrel=2.663e-05 fc=0.003183
+  pooled sim F_c t8=0.18561  t16=0.19363   obs t8=0.18463  t16=0.18825
+
+=== rep 5/5  [20260912-175112] ===
+Simplifying tree sequence...
+Simulating mutations...
+LD decay (ld_common spec 4d1d1d92b25b) -- the empirical side must print the same hash...
+    2023: mean r^2 0.2339 -> 0.0797; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+    2019: mean r^2 0.2256 -> 0.0786; crosses halfway in bin 316-562 bp   [spec 4d1d1d92b25b]
+    2015: mean r^2 0.2593 -> 0.0969; crosses halfway in bin 32-56 bp   [spec 4d1d1d92b25b]
+Temporal F_c (fc_common spec 49afd0877028) -- the empirical side must print the same hash...
+      all: F_c = 0.19185 over 19 field pairs
+      t16: F_c = 0.19691 over 9 field pairs
+       t8: F_c = 0.18729 over 10 field pairs
+  15.1 min, peak python 3710 MB / children 858 MB
+  pi=0.0205 fst=0.008689 ld=0.007546 ibd=0.001229 dxy=0.0001925 genrel=2.539e-05 fc=0.005662
+  pooled sim F_c t8=0.18729  t16=0.19691   obs t8=0.18463  t16=0.18825
+restored 19 files from backup
+exit 0
