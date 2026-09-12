@@ -64,9 +64,12 @@ prior_distributions = {
 PARAM_NAMES = ["m", "total_migration", "pop", "numClusters", "mutation_rate", "recombination_rate"]
 _BASE_LOSSES = ["pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
 
-# Temporal F_c is OFF until the empirical target exists (7.9.8E). AnalyzeTreeSeq reads the SAME
-# variable and the two must agree -- with it on, both sides are required and a missing file raises.
-COMPUTE_FC = bool(int(__import__("os").environ.get("COMPUTE_FC", "0")))
+# Temporal F_c is ON by default as of 2026-09-12 (target re-run under spec 49afd0877028, live trial
+# passed, fc_loss floor measured). Default ON rather than set by the CHTC wrapper: an unset variable
+# would give a batch that runs cleanly with no fc_loss column (CLAUDE.md 10.2). COMPUTE_FC=0 turns
+# it off. AnalyzeTreeSeq reads the SAME variable with the same default and the two must agree --
+# with it on, both sides are required and a missing file raises.
+COMPUTE_FC = bool(int(__import__("os").environ.get("COMPUTE_FC", "1")))
 LOSS_NAMES = _BASE_LOSSES + (["fc_loss"] if COMPUTE_FC else [])
 CSV_FIELDNAMES = ["iteration"] + PARAM_NAMES + LOSS_NAMES
 

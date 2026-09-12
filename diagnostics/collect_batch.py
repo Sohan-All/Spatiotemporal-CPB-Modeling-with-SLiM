@@ -71,8 +71,8 @@ from abc_standardize import robust_sigma  # noqa: E402  -- the EXACT sigma the p
 # omitted the statistic the batch existed to measure.
 #
 # The match stays EXACT, deliberately -- a batch-1 file (12 cols), a pilot file (13) and an
-# fc-enabled file (14) must not be poolable. Consequence: to analyse a batch that carries
-# fc_loss, set COMPUTE_FC=1 here too, exactly as the run did.
+# fc-enabled file (14) must not be poolable. Consequence: COMPUTE_FC here must match the run.
+# It defaults ON (2026-09-12), so re-analysing an older batch WITHOUT fc_loss needs COMPUTE_FC=0.
 EXPECTED_FIELDS = list(ABC.CSV_FIELDNAMES)
 
 # The pre-2026-09-07 layout (batch 1: no ld_loss). Recognised ONLY so the error message can say
