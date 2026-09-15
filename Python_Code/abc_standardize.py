@@ -11,8 +11,9 @@ which is its own pilot batch. This script:
   3. combines them into one standardized distance D per run,
   4. writes a ranked CSV and freezes the sigmas to a JSON file.
 
-FITTED (enter D):      pi_loss (log-space), fst_loss
-DIAGNOSTIC (not in D): ibd_loss, dxy_loss, genrel_loss   -- posterior-predictive checks only.
+FITTED (enter D):      pi_loss (log-space), fst_loss, fc_loss   -- from batch 3 (2026-09-12)
+DIAGNOSTIC (not in D): ibd_loss, dxy_loss, genrel_loss, ld_loss -- posterior-predictive checks only
+                       (ld_loss is retired as a fitted statistic, CLAUDE.md 7.5).
 """
 import json
 import numpy as np
@@ -23,28 +24,30 @@ from pathlib import Path
 # Pooled batch results live under out/<batch>/, NOT at ../out/abc_results.csv -- that path is
 # where each CHTC job writes its own output, so a tracked file there is cloned into every job
 # and appended to (CLAUDE.md 7.6.0). Point these at the batch you mean to standardize.
-RESULTS_CSV   = Path("../out/batch1/abc_results.csv")          # input: the pass results
-RANKED_CSV    = Path("../out/batch1/abc_results_ranked.csv")   # output: results + D, sorted
-SIGMAS_JSON   = Path("../out/batch1/abc_sigmas.json")          # output: frozen sigmas
-FITTED_STATS  = ["pi_loss", "fst_loss"]                 # statistics that enter the distance D
-# Set from batch 1 (2,495 trials) by diagnostics/collect_batch.py, NOT equal.
-# Rule: weight by the share of each statistic's batch spread that is DEMOGRAPHIC signal --
-# the unique rank-space R2 of pop + total_migration + m + numClusters.
-#
+RESULTS_CSV   = Path("../out/batch3/abc_results.csv")          # input: the pass results
+RANKED_CSV    = Path("../out/batch3/abc_results_ranked.csv")   # output: results + D, sorted
+SIGMAS_JSON   = Path("../out/batch3/abc_sigmas.json")          # output: frozen sigmas
+FITTED_STATS  = ["pi_loss", "fst_loss", "fc_loss"]      # statistics that enter the distance D
+
+# BATCH 3 WEIGHTS: NOT SET YET, deliberately. They come from batch 3's own variance decomposition
+# (python ../diagnostics/collect_batch.py, section 9 prints them), by the 7.4.1 rule: weight each
+# fitted statistic by the share of its batch spread that is DEMOGRAPHIC signal -- the unique
+# rank-space R2 of pop + total_migration + m + numClusters. Never guessed, and the batch 1/2 values
+# below do NOT carry over: both were fitted with mu FREE, and mu is fixed from batch 3
+# (scale_constants.py; CLAUDE.md 7.9.3), which removes pi_loss's main nuisance driver.
+# main() RAISES while this is None, rather than falling back to equal weights -- equal weights were
+# ruled out on both earlier batches, so a silent fallback would be a known-wrong D.
+WEIGHTS       = None   # e.g. {"pi_loss": ..., "fst_loss": ..., "fc_loss": ...} from collect_batch
+
+# HISTORY -- batch 1 (2,495 trials, mu free), results in ../out/batch1/:
+#   WEIGHTS = {"pi_loss": 0.125, "fst_loss": 0.875}, FITTED_STATS = ["pi_loss", "fst_loss"]
 #   statistic   R2_total   demographic   mu-nuisance   unexplained
 #   pi_loss        0.240        0.0893        0.1533         0.760
 #   fst_loss       0.622        0.6243        0.0004         0.378
-#
-# pi_loss's spread is MAJORITY mu-draw: 63% of the variance the parameters explain comes from
-# mutation_rate and only 10% from pop. mu is a deliberate nuisance dimension (kept free to absorb
-# the calibration's own uncertainty; only theta=4Nmu is ever reported), so weighting on that
-# variance would put the mu draw into D. fst_loss takes 0.000 from mu -- the empirical
-# confirmation of 5.3's claim that F_st is denominator-invariant.
-#
-# The 7.3 replicate-noise rule was tried first and REJECTED: it gives 0.488/0.512, near-equal,
-# because mu-driven spread is not replicate noise and so counts as signal under it. These weights
-# need no noise floor at all, which also sidesteps the deferred Nei->Hudson floor caveat (TODO 4).
-WEIGHTS       = {"pi_loss": 0.125, "fst_loss": 0.875}   # None -> equal weights
+# pi_loss's spread was MAJORITY mu-draw (63% of what the parameters explained). The 7.3
+# replicate-noise rule gave near-equal 0.488/0.512 and was rejected, because mu-driven spread is
+# not replicate noise and so counted as signal under it. To re-rank batch 1, restore these values
+# AND the batch1 paths above.
 ACCEPT_FRAC   = 0.20            # fraction of runs to flag as 'accepted' (top by smallest D)
 # ------------------------------------------------------------------
 
@@ -61,9 +64,20 @@ def robust_sigma(values):
 
 
 def main():
+    # Config checks first, so a half-edited config is reported as such rather than as missing data.
+    if WEIGHTS is None:
+        raise ValueError(
+            "WEIGHTS is not set. Run diagnostics/collect_batch.py on this batch and copy the "
+            "WEIGHTS its section 9 prints (CLAUDE.md 7.4.1). Equal weights are deliberately not "
+            "a fallback.")
+    if set(WEIGHTS) != set(FITTED_STATS):
+        raise ValueError(f"WEIGHTS keys {sorted(WEIGHTS)} != FITTED_STATS {sorted(FITTED_STATS)} "
+                         f"-- a statistic without a weight, or a weight without a statistic, "
+                         f"means the config was only half updated.")
     if not RESULTS_CSV.exists():
         raise FileNotFoundError(f"Results CSV not found: {RESULTS_CSV.resolve()} "
                                 f"(run the pass first).")
+
     df = pd.read_csv(RESULTS_CSV)
 
     missing = [s for s in FITTED_STATS if s not in df.columns]
@@ -80,12 +94,9 @@ def main():
                              f"(all-NaN, <2 values, or zero MAD). Inspect the pass output.")
         sigmas[stat] = float(s)
 
-    # 2) weights
-    if WEIGHTS is None:
-        w = {stat: 1.0 / len(FITTED_STATS) for stat in FITTED_STATS}
-    else:
-        total = float(sum(WEIGHTS[s] for s in FITTED_STATS))
-        w = {stat: WEIGHTS[stat] / total for stat in FITTED_STATS}
+    # 2) weights (validated non-None and matching FITTED_STATS above)
+    total = float(sum(WEIGHTS[s] for s in FITTED_STATS))
+    w = {stat: WEIGHTS[stat] / total for stat in FITTED_STATS}
 
     # 3) combined standardized distance:  D = sqrt( sum_j w_j * (loss_j / sigma_j)^2 )
     sq = np.zeros(len(df))
@@ -117,9 +128,9 @@ def main():
     print(f"  best D = {df['D'].iloc[0]:.4g}   acceptance threshold eps = {df['D'].iloc[n_accept-1]:.4g}")
     print(f"Wrote: {RANKED_CSV}")
     print(f"Wrote: {SIGMAS_JSON}")
-    print("\nNOTE (plan §4): measure the noise floor before trusting eps -- simulate >=2 "
-          "replicates at identical params and compute D between them. If eps is below that "
-          "floor you are selecting on coalescent noise.")
+    print("\nNOTE: keep eps above the replicate noise floor (CLAUDE.md 7.9.10C; fc_loss ~0.0018-0.0022, "
+          "fst_loss ~0.0003, pi_loss ~0.0017-0.011 by POPMULT). Below it you are selecting on "
+          "coalescent noise, and with a misspecified model that biases toward noisy prior regions.")
 
 
 if __name__ == "__main__":

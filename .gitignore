@@ -27,3 +27,7 @@ out/batch1_raw/
 out/pilot_raw/
 out/pilot_raw_asreturned/
 out/*_raw/
+
+# HTCondor logs returned with each batch (.log/.out/.err per job, plus the zip). 1,500 files for
+# batch 3 alone; the numbers worth keeping from them are written up in CLAUDE.md 3.1.
+out/*_log/

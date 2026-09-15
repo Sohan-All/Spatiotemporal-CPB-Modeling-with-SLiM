@@ -75,40 +75,47 @@ from abc_standardize import robust_sigma  # noqa: E402  -- the EXACT sigma the p
 # It defaults ON (2026-09-12), so re-analysing an older batch WITHOUT fc_loss needs COMPUTE_FC=0.
 EXPECTED_FIELDS = list(ABC.CSV_FIELDNAMES)
 
-# The pre-2026-09-07 layout (batch 1: no ld_loss). Recognised ONLY so the error message can say
-# which batch a file came from instead of "header does not match".
-LEGACY_FIELDS_NO_LD = [f for f in EXPECTED_FIELDS if f != "ld_loss"]
+# Earlier layouts, recognised ONLY so the error message can say which batch a file came from
+# instead of "header does not match". Built from the base columns, not from EXPECTED_FIELDS, so
+# they stay correct whichever way COMPUTE_FC is set.
+_BASE_FIELDS = ["iteration"] + list(ABC.PARAM_NAMES)
+LEGACY_LAYOUTS = {
+    "BATCH 1 (12 columns: no ld_loss, no fc_loss)":
+        _BASE_FIELDS + [s for s in ABC._BASE_LOSSES if s != "ld_loss"],
+    "BATCH 2 / LD pilot (13 columns: ld_loss, no fc_loss)":
+        _BASE_FIELDS + list(ABC._BASE_LOSSES),
+    "an F_c batch (14 columns, ends in fc_loss)":
+        _BASE_FIELDS + list(ABC._BASE_LOSSES) + ["fc_loss"],
+}
 
 LOSSES = list(ABC.LOSS_NAMES)
-# 7: the fitted set this batch is being asked to weight. ld_loss is NOT yet in
-# abc_standardize.py::FITTED_STATS -- deriving its weight here is the prerequisite
-# for putting it there (7.5 step 5). Keep this list in step with EXPECTED_FIELDS:
-# a statistic missing here is silently dropped from every section below.
+# 7: the fitted set this batch is being asked to weight. Keep this list in step with
+# EXPECTED_FIELDS: a statistic missing here is silently dropped from every section below.
 # Hand-set: which statistics ENTER D is a judgement, not a consequence of what is computed.
-# ld_loss is computed and NOT fitted (7.8); fc_loss is computed and not yet fitted (7.9.8E).
+# BATCH 3 (2026-09-12): pi_loss, fst_loss, fc_loss. ld_loss is computed and RETIRED (CLAUDE.md
+# 7.5) -- it stays in LOSSES for the diagnostic sections but must not be weighted. Batch 2 was
+# analysed with ["pi_loss", "fst_loss", "ld_loss"]; to re-run that, set this back AND COMPUTE_FC=0.
 # Validated against LOSSES below so a rename cannot leave a dangling name.
-FITTED = ["pi_loss", "fst_loss", "ld_loss"]
+FITTED = ["pi_loss", "fst_loss", "fc_loss"]
 _unknown = [f for f in FITTED if f not in LOSSES]
 if _unknown:
-    raise SystemExit(f"FITTED names not in LOSSES: {_unknown}")
+    raise SystemExit(f"FITTED names not in LOSSES: {_unknown}. fc_loss needs COMPUTE_FC=1 (the "
+                     f"default); an older batch without it needs FITTED edited as well.")
 PARAMS = ["pop", "total_migration", "m", "numClusters", "mutation_rate"]
 
-# 7.3 replicate noise floor: run-to-run mean|diff| over 3 reps at POPMULT=5000, identical params.
-NOISE_FLOOR = {"pi_loss": 0.00240, "fst_loss": 0.00017, "ld_loss": 0.00074,
-               "ibd_loss": 0.00014, "dxy_loss": 0.00005, "genrel_loss": 0.00001,
-               "fc_loss": 0.00157}
-# fc_loss: 7.9.8, four seeds at POPMULT=2000 in the n_real arm (the one that is measurable),
-# all three dice re-rolled, mean pairwise |diff| to match the convention of the entries above.
-# This is a floor on the STATISTIC, not yet on the loss -- fc_loss did not exist when it was
-# measured. The two coincide away from zero, since the observed side is a constant.
-# ld_loss: 7.5.5, four seeds at POPMULT=1500 (0.00299/0.00348/0.00411/0.00426), all three
-# dice re-rolled. Same mean-pairwise-|diff| convention as the 7.3 entries. Measured at ONE
-# POPMULT, and at the sweep MINIMUM where the level is lowest -- so it is a floor for the
-# bottom of the prior, not across it.
-# fst_loss and ibd_loss above are on the OLD Nei statistic (6.7). Scaled by the single measured
-# conversion point (fst_loss x1.80); ibd_loss doubles by the same algebra since the IBD slope
-# regresses on F_st/(1-F_st). ASSUMPTION, not a measurement.
-NEI_SCALED = {"fst_loss": 1.80, "ibd_loss": 1.80}
+# Replicate noise floor: run-to-run mean pairwise |diff| at IDENTICAL parameters, all five dice
+# re-rolled. Re-measured 2026-09-12 by diagnostics/fc_loss_floor.py (CLAUDE.md 7.9.10C): 5 reps at
+# POPMULT=5000, m=5e-5, total_migration=0.05, 33 demes, Q=100 constants, through the real
+# model() -> calculate_losses(). This REPLACES the 7.3 (old constants, Nei F_st) / 7.5.5 / 7.9.8
+# entries, so the old Nei->Hudson scaling assumption is gone: fst_loss and ibd_loss are now
+# measured on the Hudson estimator batch 3 uses.
+# Caveats: ONE parameter point, and floors are level-dependent -- at POPMULT=2000 fc_loss's is
+# ~0.0021 and pi_loss's ~0.011 (7x larger). Section 4 is a sanity check, not a weight (7.4.1).
+# Batches 1 and 2 ran at the old constants, so these floors do not describe them.
+NOISE_FLOOR = {"pi_loss": 0.00170, "fst_loss": 0.000258, "ld_loss": 0.000429,
+               "ibd_loss": 0.000114, "dxy_loss": 0.000096, "genrel_loss": 6.6e-07,
+               "fc_loss": 0.00222}
+NEI_SCALED = {}   # empty since 2026-09-12: the floors above are measured on Hudson F_st
 
 PRIOR_POP = (2000.0, 25000.0)      # ABCAnalysisNoRedis.py -- U(2000, 25000) since 2026-08-26
 CLUSTER_MULT = 33                  # numClusters in the CSV is the raw draw; actual count is x33
@@ -186,11 +193,14 @@ def load_jobs(raw_dir, prefix):
         hdr_idx = [i for i, r in enumerate(rows) if r == EXPECTED_FIELDS]
         if not hdr_idx:
             got = rows[0] if rows else []
-            if rows and rows[0] == LEGACY_FIELDS_NO_LD:
+            which = next((name for name, lay in LEGACY_LAYOUTS.items()
+                          if rows and rows[0] == lay), None)
+            if which:
                 problems.append(
-                    f"{path.name}: this is a BATCH-1 file (12 columns, no ld_loss). Batch 1 and "
-                    f"the post-2026-09-07 batches have different fitted-statistic sets and MUST "
-                    f"NOT be pooled -- point --raw-dir at one batch or the other.")
+                    f"{path.name}: this is a file from {which}, but this invocation expects "
+                    f"{len(EXPECTED_FIELDS)} columns (COMPUTE_FC={int(ABC.COMPUTE_FC)}). Batches "
+                    f"with different statistic sets MUST NOT be pooled -- point --raw-dir at one "
+                    f"batch, and set COMPUTE_FC (and FITTED) to match it.")
                 continue
             problems.append(f"{path.name}: no header matching the expected layout (first row: {got}) "
                             f"-- DIFFERENT CODE REVISION? not pooled")
@@ -253,9 +263,10 @@ def report_inventory(jobs, problems, expect_trials):
         if len(problems) > 5:
             print(f"    ... and {len(problems) - 5} more")
         raise SystemExit(
-            "\nNo usable rows. If these are batch-1 files, that is CORRECT and deliberate: "
-            "batch 1 predates ld_loss and must not be pooled with post-2026-09-07 batches. "
-            "Point --raw-dir at a single batch.")
+            "\nNo usable rows. If the files are from a batch with a different statistic set, that "
+            "is CORRECT and deliberate: the header match is exact so batches cannot be pooled. "
+            "Point --raw-dir at a single batch and set COMPUTE_FC to match it (batches 1 and 2: "
+            "COMPUTE_FC=0; batch 3 onward: the default).")
     counts = {j: len(jobs[j]) for j in ids}
     total = sum(counts.values())
     print(f"  files parsed        : {len(ids)}")
@@ -371,7 +382,7 @@ def report_statistics(A):
     print("4. PER-STATISTIC SCALE vs THE 7.3 NOISE FLOOR")
     print("=" * 78)
     print("  sigma = 1.4826*MAD across the batch -- the value abc_standardize.py freezes.")
-    print("  floor = 7.3 run-to-run mean|diff| at identical parameters.")
+    print("  floor = run-to-run mean|diff| at identical parameters (7.9.10C: POPMULT=5000, Q=100).")
     print("  signal frac = 1 - (floor/sigma)^2 : the share of the batch spread that is NOT noise.")
     print()
     print(f"  {'statistic':12s} {'median':>10s} {'sigma':>10s} {'floor':>10s} "
@@ -571,11 +582,12 @@ def report_recommendation(scale_rows, decomp, A):
     if ntot > 0:
         print(f"    noise-floor rule only (4): " +
               "  ".join(f"{s}={naive[s] / ntot:.3f}" for s in FITTED))
-    print("  Both over-weight pi, for the same reason: they treat its mu-driven spread as signal.")
+    print("  In batches 1-2 both over-weighted pi because its spread was mostly the mu draw. mu is")
+    print("  FIXED from batch 3, so compare the three rows rather than assuming that still holds.")
     print()
-    print("  Caveat kept: the fst_loss noise floor in section 4 is SCALED, not measured")
-    print("  (6.7 / TODO 4). It does not enter this rule -- these weights come from 5b, which")
-    print("  needs no floor at all. That is a further reason to prefer them.")
+    print("  The floors in section 4 are one parameter point (7.9.10C). They do not enter this")
+    print("  rule -- these weights come from section 7, which needs no floor at all. Use the floor")
+    print("  as a VETO only (7.4.1): a fitted statistic whose floor/sigma nears 1 should be dropped.")
 
 
 # ------------------------------------------------------------------ main
@@ -605,16 +617,19 @@ def write_concat(A, out_path):
             w.writerow([int(A["job_id"][i]), int(A["iteration"][i])] +
                        [repr(float(A[c][i])) for c in EXPECTED_FIELDS[1:]])
     print(f"\nWrote {n} rows + header -> {out_path}")
-    print("  Columns: job_id (recovered from filename) + the 12 written by ABCAnalysisNoRedis.py.")
-    print("  abc_standardize.py reads ../out/abc_results.csv and ignores the extra column.")
+    print(f"  Columns: job_id (recovered from filename) + the {len(EXPECTED_FIELDS)} written by "
+          f"ABCAnalysisNoRedis.py.")
+    print(f"  Point abc_standardize.py::RESULTS_CSV at {out_path}; it ignores the extra column.")
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--raw-dir", default="../out/batch1_raw")
+    # Defaults point at BATCH 3 (the F_c pilot, 2026-09-12). Older batches need both paths passed
+    # explicitly AND COMPUTE_FC=0 -- write_concat refuses to overwrite a different layout anyway.
+    p.add_argument("--raw-dir", default="../out/batch3_raw")
     # NOT ../out/abc_results.csv -- that is each CHTC job's own write path, and a tracked
     # file there is cloned into every job and appended to (CLAUDE.md 7.6.0).
-    p.add_argument("--out", default="../out/batch1/abc_results.csv")
+    p.add_argument("--out", default="../out/batch3/abc_results.csv")
     p.add_argument("--prefix", default="abc_results_")
     p.add_argument("--expect-trials", type=int, default=5)
     p.add_argument("--no-write", action="store_true", help="report only; write nothing")
