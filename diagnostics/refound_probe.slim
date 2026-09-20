@@ -1,0 +1,122 @@
+// RE-FOUNDING PROBE -- CLAUDE.md 7.9.12D / TODO 9.6 step 1.
+//
+// Identical to SLiM_Code/CPBSampleSimWin.slim except for the block marked REFOUNDING, and
+// except that the three file paths are passed in as -d constants so the repo's data/ is only
+// ever READ and the .trees lands in a scratch dir (CLAUDE.md 10).
+//
+// -d constants required (no defaults anywhere, CLAUDE.md 10.1):
+//   POPMULT, RECOMB, MIGFILE, PROPFILE, OUTFILE, REFOUND_K, REFOUND_M
+//
+// REFOUND_K : diploid founders a deme is cut to at each re-founding.
+// REFOUND_M : fraction of the founding cohort drawn from OTHER demes, kernel-weighted.
+//             0.05 reproduces the production migration row, i.e. a pure BOTTLENECK with
+//             ordinary migration. 1.0 is full extinction-recolonization from the migrant pool.
+//             Setting REFOUND_K < 0 disables re-founding entirely (the baseline arm).
+//
+// SCHEDULE. 2 generations per year (CLAUDE.md 11), so re-founding fires once a YEAR = every 2
+// ticks. It fires on ODD ticks so that the three sampling ticks -- 308/316/324, all EVEN -- are
+// each ONE generation AFTER a founding, i.e. a field colonised in spring and sampled in summer.
+//
+// WF TIMING, verified in this environment (SLiM 5.1) rather than taken from the manual:
+// early() runs BEFORE offspring generation, so setSubpopulationSize() and setMigrationRates()
+// called in early() of tick g govern the cohort produced in tick g itself.
+
+initialize()
+{
+    initializeTreeSeq(timeUnit="generations");
+    initializeMutationRate(0);
+    initializeMutationType("m1", 0.5, "f", 0.0);
+    m1.convertToSubstitution = F;
+    initializeGenomicElementType("g1", m1, 1);
+    initializeGenomicElement(g1, 0, 1e6 - 1);
+    initializeRecombinationRate(RECOMB);
+}
+
+1 early()
+{
+    migrationRatesDF = readCSV(MIGFILE, colNames=T, sep=",");
+    propDF = readCSV(PROPFILE, colNames=T, sep=",");
+
+    migrationRates = migrationRatesDF.asMatrix();
+
+    numSubpops = propDF.nrow;
+    for (i in 0:(propDF.nrow-1)) {
+        sim.addSubpop("p"+i, asInteger(propDF.getValue("Average Count")[i] * POPMULT / numSubpops));
+    }
+
+    for (i in 0:(ncol(migrationRates)-1)) {
+        for (j in 0:(nrow(migrationRates)-1)) {
+            if (i != j)
+                sim.subpopulations[i].setMigrationRates(sim.subpopulations[j], migrationRates[i+ncol(migrationRates)*j]);
+        }
+    }
+
+    // Stash what the re-founding events need. NSUB x NSUB, column-major, element [i,j] at
+    // flat index i + NSUB*j = rate INTO deme i FROM deme j (verified against the CSV).
+    defineConstant("MIGMAT", migrationRates);
+    defineConstant("NSUB", numSubpops);
+    defineConstant("NORMSIZE", sim.subpopulations.individualCount);
+
+    catn("refound.slim: NSUB=" + NSUB + " POPMULT=" + POPMULT + " K=" + REFOUND_K +
+         " M=" + REFOUND_M + " sizes " + min(NORMSIZE) + ".." + max(NORMSIZE));
+}
+
+// ---------------------------------------------------------------- REFOUNDING
+3:324 early()
+{
+    if (REFOUND_K < 0)
+        return;                                  // baseline arm: no re-founding at all
+
+    refounding = (community.tick % 2 == 1);
+
+    for (i in 0:(NSUB-1)) {
+        others = setDifference(0:(NSUB-1), i);
+        rates = MIGMAT[i + NSUB * others];        // this deme's kernel row, off-diagonals
+
+        if (refounding) {
+            // Draw REFOUND_M of the founding cohort from other demes, kernel-weighted, and
+            // cut the cohort to REFOUND_K. The (1 - 1e-9) keeps the sum strictly below 1.0 at
+            // REFOUND_M = 1.0, which SLiM rejects on the boundary.
+            rates = rates / sum(rates) * REFOUND_M * (1.0 - 1e-9);
+            sim.subpopulations[i].setMigrationRates(others, rates);
+            sim.subpopulations[i].setSubpopulationSize(REFOUND_K);
+        } else {
+            sim.subpopulations[i].setMigrationRates(others, rates);
+            sim.subpopulations[i].setSubpopulationSize(NORMSIZE[i]);
+        }
+    }
+}
+// ------------------------------------------------------------ end REFOUNDING
+
+308 late() { sim.treeSeqRememberIndividuals(sim.subpopulations.individuals, T); }
+
+316 late() { sim.treeSeqRememberIndividuals(sim.subpopulations.individuals, T); }
+
+324 late()
+{
+    sim.treeSeqOutput(OUTFILE);
+    sim.simulationFinished();
+}
+
+// ---------------------------------------------------------------------------------------------
+// REPRODUCING THE 2026-09-19 RUN (CLAUDE.md 7.9.12F). Paths are -d constants, so this file is
+// OS-agnostic -- unlike SLiM_Code/CPBSampleSim{Win,Linux}.slim there is no Win/Linux pair to
+// keep in sync. Run from anywhere; <DATA> is a scratch dir holding cluster/migration files made
+// by the real Main.py helpers, and cluster_data.csv may be read straight from the repo.
+//
+//   slim -l 0 -s 20260919 -d POPMULT=2000 -d RECOMB=1.02e-6 \
+//        -d REFOUND_K=40 -d REFOUND_M=1.0 \
+//        -d "MIGFILE='<DATA>/migration_rates.csv'" \
+//        -d "PROPFILE='<REPO>/data/cluster_data.csv'" \
+//        -d "OUTFILE='<OUT>/refound.trees'" refound_probe.slim
+//
+// then score it -- --simplify-first is NOT optional, without it the n_big arm thrashed for 2 h
+// and produced nothing (7.9.7):
+//
+//   cd diagnostics && python temporal_fc.py --raw-ts <OUT>/refound.trees --simplify-first \
+//        --popmult 2000 --num-clusters 1 --total-migration 0.05 --reps 5 --seed 1
+//
+// The arms that were run: baseline REFOUND_K=-1; bottleneck K=40 M=0.05 (the negative control --
+// it makes the misfit WORSE, and skipping it is how someone concludes the idea failed);
+// re-founding K=40 M=1.0; K=100 M=1.0; and both of the first and third at kernel scale 1e-3.
+// ---------------------------------------------------------------------------------------------

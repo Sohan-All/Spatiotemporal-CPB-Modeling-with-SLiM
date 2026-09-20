@@ -20,7 +20,7 @@ CLAUDE.md 6.1 establishes from four independent directions that 6700 fails its o
 internal check by ~52x, so a Q derived from it inherits that. **The arrow is now reversed.**
 Q is a declared modelling decision (chosen round, for tractability) and ancestral_Ne is DERIVED:
 
-    MU_TRUE  = 5.8e-9      measured. Zhang et al. 2026, GBE 18(2):evag027 -- 16 CPB
+    MU_TRUE  = 5.8e-9      measured. Xu et al. 2026, GBE 18(2):evag027 -- 16 CPB
                            parent-offspring trios, ~32.8x coverage, 92 de novo mutations
                            (95% CI 4.7-7.2e-9). CLAUDE.md 6.1.2.
     R_TRUE   = 1.02e-8      measured, and Ne-FREE. Hawthorne 2001 (Genetics 158:695-700), 1,032 cM
@@ -72,7 +72,7 @@ ANCESTRAL_NE to get the fitted value; until then treat pi's level as good to a f
 """
 
 # ---- measured inputs (never edit without changing the citation) --------------------------
-MU_TRUE = 5.8e-9            # Zhang et al. 2026, GBE 18(2):evag027 (95% CI 4.7-7.2e-9)
+MU_TRUE = 5.8e-9            # Xu et al. 2026, GBE 18(2):evag027 (95% CI 4.7-7.2e-9)
 R_TRUE = 1.02e-8            # Hawthorne 2001 map / Yan et al. 2023 assembly = 1.02 cM/Mb
 PI_OBS = 0.0122             # CLAUDE.md 5.1, genome-wide mean after the denominator fix
 
