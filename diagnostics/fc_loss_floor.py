@@ -58,7 +58,7 @@ OUTPUT_DATA = ROOT / "data" / "Output_Data"
 
 # Records pool only if ALL of these agree.
 POOL_KEYS = ("fc_spec", "ld_spec", "fc_empirical_spec", "m", "total_migration", "numClusters",
-             "mutation_rate", "recombination_rate", "ancestral_Ne", "Q")
+             "mutation_rate", "recombination_rate", "ancestral_Ne", "Q", "refound_k", "refound_m")
 
 
 def _backup():
@@ -134,21 +134,28 @@ def _pooled_by_gap(table):
 
 
 def main(a):
+    # The re-founding toggle has no default here either (CLAUDE.md 7.9.12G): a floor measured under
+    # the wrong model structure is silently the wrong floor. -1 = the persistent-deme model.
+    if a.refound_k is None:
+        raise SystemExit("--refound-k is required: -1 for the persistent-deme model (every floor "
+                         "recorded before 2026-09-22), or a founder number for re-founding.")
     if fcc.spec_hash() != ABC.FC_EMPIRICAL_SPEC:
         raise SystemExit(f"fc spec {fcc.spec_hash()} != FC_EMPIRICAL_SPEC {ABC.FC_EMPIRICAL_SPEC}")
     obs = ABC.getObservedData()
     obs_gap = _pooled_by_gap(obs["temporal_fc"])
     params = {"m": a.m, "total_migration": a.total_migration, "pop": a.popmult,
               "numClusters": a.num_clusters, "mutation_rate": sc.MUTATION_RATE,
-              "recombination_rate": sc.RECOMBINATION_RATE}
+              "recombination_rate": sc.RECOMBINATION_RATE,
+              "refound_k": a.refound_k, "refound_m": a.refound_m}
     common = {"kind": "replicate", "popmult": a.popmult, "m": a.m,
               "total_migration": a.total_migration, "numClusters": a.num_clusters,
               "mutation_rate": sc.MUTATION_RATE, "recombination_rate": sc.RECOMBINATION_RATE,
               "ancestral_Ne": sc.ANCESTRAL_NE, "Q": sc.Q, "fc_spec": fcc.spec_hash(),
               "ld_spec": ldc.spec_hash(), "fc_empirical_spec": ABC.FC_EMPIRICAL_SPEC,
-              "git": _git_head(), "fc_pooled_obs": obs_gap}
+              "git": _git_head(), "fc_pooled_obs": obs_gap,
+              "refound_k": a.refound_k, "refound_m": a.refound_m}
     print(f"POPMULT={a.popmult} x{a.reps}  m={a.m} tm={a.total_migration} "
-          f"demes={a.num_clusters * 33}  fc spec {common['fc_spec']}  git {common['git']}",
+          f"demes={a.num_clusters * 33}  refound K={a.refound_k} M={a.refound_m}  fc spec {common['fc_spec']}  git {common['git']}",
           flush=True)
 
     saved = _backup()
@@ -192,6 +199,11 @@ def _stats(v):
 def summarize(a):
     recs = [json.loads(l) for l in open(a.out, encoding="utf-8") if l.strip()]
     recs = [r for r in recs if r.get("kind") == "replicate"]
+    for r in recs:
+        # Records from before the toggle (2026-09-22) ran the persistent-deme model, which the
+        # toggle's OFF state reproduces exactly -- so they are refound_k = -1, not unknown.
+        r.setdefault("refound_k", ABC.REFOUND_OFF)
+        r.setdefault("refound_m", ABC.REFOUND_M)
     if not recs:
         raise SystemExit(f"no records in {a.out}")
     for k in POOL_KEYS:
@@ -241,6 +253,10 @@ if __name__ == "__main__":
     ap.add_argument("--m", type=float, default=5e-5, help="kernel decay (7.9.6 baseline)")
     ap.add_argument("--total-migration", type=float, default=0.05)
     ap.add_argument("--num-clusters", type=int, default=1, help="RAW draw; demes = 33x this")
+    ap.add_argument("--refound-k", type=int, default=None,
+                    help="REQUIRED for a run: -1 = persistent demes, else founders per deme per year")
+    ap.add_argument("--refound-m", type=float, default=ABC.REFOUND_M,
+                    help="immigrant fraction of founders (production fixes it at 1.0)")
     ap.add_argument("--out", default=str(ROOT / "out" / "fc_loss_floor.jsonl"))
     ap.add_argument("--summarize", action="store_true")
     args = ap.parse_args()

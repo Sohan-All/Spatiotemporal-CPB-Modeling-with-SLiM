@@ -24,7 +24,8 @@ import sys
 KMEANS_SEED = 42
 
 def main(num_clusters, migration_rates_modifier, population_modifier, total_migration=0.05,
-         mutation_rate=None, recombination_rate=None, ancestral_Ne=sc.ANCESTRAL_NE, silent=False):
+         mutation_rate=None, recombination_rate=None, ancestral_Ne=sc.ANCESTRAL_NE, silent=False,
+         refound_k=None, refound_m=None):
     # No default for mutation_rate: it sets the diversity scale, so fail loudly rather than
     # silently reproduce a wrong one (CLAUDE.md 10.1).
     if mutation_rate is None or recombination_rate is None:
@@ -35,6 +36,24 @@ def main(num_clusters, migration_rates_modifier, population_modifier, total_migr
             "hardcoded 2.75e-6 until 2026-09-09, which 10.1 claimed had been removed and had not "
             "(6.8.1). Pass ABCAnalysisNoRedis.DEFAULT_MUTATION_RATE / "
             "DEFAULT_RECOMBINATION_RATE, or scale_constants directly.")
+
+    # The re-founding toggle (CLAUDE.md 7.9.12F/G). No defaults, for the same reason: it switches
+    # the model STRUCTURE, and a toggle that could flip silently would leave output files with no
+    # record of which model made them. refound_k < 0 is OFF (the persistent-deme model, verified
+    # identical to the pre-toggle script). Checked here, before anything in data/ is overwritten.
+    if refound_k is None or refound_m is None:
+        raise ValueError(
+            "main() requires explicit refound_k AND refound_m -- the re-founding toggle has no "
+            "default (CLAUDE.md 7.9.12G). Pass refound_k=-1 for the persistent-deme model; "
+            "refound_m is then unused but must still be given (1.0 is the production value).")
+    if int(refound_k) != refound_k:
+        raise ValueError(f"refound_k={refound_k!r} must be a whole number of founders (or < 0 for off)")
+    refound_k = int(refound_k)
+    if 0 <= refound_k < 1:
+        raise ValueError(f"refound_k=0: a re-founded deme needs at least 1 founder. "
+                         f"Use a negative value to turn re-founding off.")
+    if not (0 < refound_m <= 1):
+        raise ValueError(f"refound_m={refound_m!r} must be in (0, 1]")
     #for cleanliness
     warnings.filterwarnings("ignore")
     
@@ -68,7 +87,7 @@ def main(num_clusters, migration_rates_modifier, population_modifier, total_migr
     GenerateSimulationParams.determine_migration_rates(distances, total_migration=total_migration, scale=migration_rates_modifier, output_path=Path('../data/migration_rates.csv'))
 
     # THE REAL CEILING ON DEME COUNT, and it is NOT recapitation (CLAUDE.md 7.9.5).
-    # CPBSampleSim*.slim line 30 does
+    # CPBSampleSim*.slim's `1 early()` block does
     #     sim.addSubpop("p"+i, asInteger(Average Count[i] * POPMULT / numSubpops))
     # and SLiM refuses an empty subpopulation:
     #     ERROR (Population::AddSubpopulation): subpopulation p38 empty.
@@ -89,7 +108,17 @@ def main(num_clusters, migration_rates_modifier, population_modifier, total_migr
             f"Deme size is Average Count * POPMULT / numSubpops, so it falls as 1/numSubpops: "
             f"this cluster layout needs POPMULT >= {_needed} at {len(clusters)} clusters. "
             f"Raise POPMULT, or lower numClusters. See CLAUDE.md 7.9.5.")
-    
+
+    # Re-founding cannot hit the empty-subpop wall: refound_k >= 1 is enforced above, and the SLiM
+    # block caps founders at each deme's normal size (>= 1 by the guard just above). So no deme is
+    # ever set to 0. Report how many demes the cap applies to, since those get recolonised but NOT
+    # bottlenecked -- worth knowing at many demes and small POPMULT.
+    if refound_k >= 1 and not silent:
+        _sizes = [int(a * population_modifier / len(clusters)) for a in _ac]
+        _capped = sum(s < refound_k for s in _sizes)
+        print(f"Re-founding ON: K={refound_k}, M={refound_m}; {_capped}/{len(_sizes)} demes are "
+              f"smaller than K and are re-founded at their own size.")
+
     #Run the SLiM simulation to create the tree sequence
     if not silent:
         print("Running SLiM simulation...")
@@ -105,6 +134,8 @@ def main(num_clusters, migration_rates_modifier, population_modifier, total_migr
     subprocess.run(['slim', '-l', '0',
                     '-d', f'POPMULT={population_modifier}',
                     '-d', f'RECOMB={recombination_rate!r}',
+                    '-d', f'REFOUND_K={refound_k}',
+                    '-d', f'REFOUND_M={float(refound_m)!r}',
                     str(slim_script)], check=True)
     
     #Does recapitation and mutation addition, then gets diversity and divergence statistics
@@ -129,12 +160,21 @@ if __name__ == "__main__":
     
     # Imported here, not at module scope, so the simulation path has no import-time dependency
     # on the ABC driver.
-    from ABCAnalysisNoRedis import DEFAULT_MUTATION_RATE, DEFAULT_RECOMBINATION_RATE
+    from ABCAnalysisNoRedis import DEFAULT_MUTATION_RATE, DEFAULT_RECOMBINATION_RATE, REFOUND_M
 
     #Query for the mutation rate. Not a biological rate -- report theta=4*Ne*mu (CLAUDE.md 6.1).
     mutation_rate = float(input(
         f"Enter the mutation rate (default {DEFAULT_MUTATION_RATE:g}, calibrated): ").strip()
         or DEFAULT_MUTATION_RATE)
 
+    # Re-founding toggle (CLAUDE.md 7.9.12G). -1 = off, the persistent-deme model.
+    refound_k = int(input("Enter REFOUND_K, founders per deme per year (default -1 = off): ").strip()
+                    or -1)
+    refound_m = REFOUND_M
+    if refound_k >= 0:
+        refound_m = float(input(f"Enter REFOUND_M, immigrant fraction of founders "
+                                f"(default {REFOUND_M}): ").strip() or REFOUND_M)
+
     main(num_clusters, migration_rates_modifier, population_modifier,
-         mutation_rate=mutation_rate, recombination_rate=DEFAULT_RECOMBINATION_RATE)
+         mutation_rate=mutation_rate, recombination_rate=DEFAULT_RECOMBINATION_RATE,
+         refound_k=refound_k, refound_m=refound_m)

@@ -155,6 +155,9 @@ def run_slim(popmult, num_clusters, recomb, total_migration, scale):
                        + ("Win" if platform.system() == "Windows" else "Linux") + ".slim")
     t0 = time.perf_counter()
     subprocess.run(["slim", "-l", "0", "-d", f"POPMULT={popmult}", "-d", f"RECOMB={recomb!r}",
+                    # Re-founding OFF: this harness measures the persistent-deme model, and the .slim
+                    # has no default for the toggle (CLAUDE.md 7.9.12G). OFF is identical to the pre-toggle model.
+                    "-d", "REFOUND_K=-1", "-d", "REFOUND_M=1.0",
                     str(slim_script)], check=True)
     dt = time.perf_counter() - t0
     size = Path("../out/simTreeSeq.trees").stat().st_size / 1024 / 1024

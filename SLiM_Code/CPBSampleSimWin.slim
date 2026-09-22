@@ -1,4 +1,19 @@
 // set up a simple neutral simulation
+//
+// -d constants required, none has a default (CLAUDE.md 10.1): POPMULT, RECOMB, REFOUND_K, REFOUND_M
+//
+// RE-FOUNDING TOGGLE (CLAUDE.md 7.9.12F/G). Once a year (every 2 ticks) each deme is cut to
+// REFOUND_K diploid founders, a fraction REFOUND_M of them drawn from OTHER demes weighted by the
+// kernel row; the next tick restores its normal size and migration row.
+//   REFOUND_K < 0  -> re-founding OFF. Verified identical to the pre-toggle model at the same seed
+//                     (diagnostics/toggle_check.py). REFOUND_M must still be passed.
+//   REFOUND_M      -> 1.0 is full extinction-recolonization from the migrant pool (the model that
+//                     fits). 0.05 reproduces the ordinary migration row, i.e. a bottleneck alone --
+//                     the negative control, which makes the drift misfit WORSE.
+//   A deme whose normal size is below REFOUND_K is re-founded at its normal size instead.
+// Fires on ODD ticks so the sampling ticks 308/316/324 (all even) are each one generation after a
+// founding. early() runs before offspring generation (SLiM 5.1), so changes made in early() of
+// tick g govern the cohort produced in tick g.
 initialize()
 {
     initializeTreeSeq(timeUnit="generations");
@@ -35,6 +50,46 @@ initialize()
         for (j in 0:(nrow(migrationRates)-1)) {
             if (i != j) 
                 sim.subpopulations[i].setMigrationRates(sim.subpopulations[j], migrationRates[i+ncol(migrationRates)*j]);
+        }
+    }
+
+    // Validate the toggle here so a missing -d is a loud 'undefined identifier' even when OFF
+    if (REFOUND_K >= 0 & REFOUND_K < 1)
+        stop("REFOUND_K = " + REFOUND_K + ": a re-founded deme needs at least 1 founder (use < 0 to disable)");
+    if (REFOUND_M <= 0 | REFOUND_M > 1)
+        stop("REFOUND_M = " + REFOUND_M + " must be in (0, 1]");
+
+    // What the re-founding events need. MIGMAT[i + NSUB*j] = rate INTO deme i FROM deme j
+    defineConstant("MIGMAT", migrationRates);
+    defineConstant("NSUB", numSubpops);
+    defineConstant("NORMSIZE", sim.subpopulations.individualCount);
+}
+
+
+// Re-founding (see header). Returns immediately when the toggle is OFF
+3:324 early()
+{
+    if (REFOUND_K < 0)
+        return;
+
+    refounding = (community.tick % 2 == 1);
+
+    for (i in 0:(NSUB-1)) {
+        others = setDifference(0:(NSUB-1), i);
+        rates = MIGMAT[i + NSUB * others];    // this deme's kernel row, off-diagonals
+
+        if (refounding) {
+            // Draw REFOUND_M of the founding cohort from other demes, kernel-weighted, and cut the
+            // cohort to REFOUND_K. (1 - 1e-9) keeps the sum strictly below 1.0 at REFOUND_M = 1.0,
+            // which SLiM rejects on the boundary
+            rates = rates / sum(rates) * REFOUND_M * (1.0 - 1e-9);
+            sim.subpopulations[i].setMigrationRates(others, rates);
+            // Capped at the deme's normal size: a deme smaller than K is still recolonised
+            // wholly from immigrants, just without a bottleneck (Sohan, 2026-09-22)
+            sim.subpopulations[i].setSubpopulationSize(min(asInteger(REFOUND_K), NORMSIZE[i]));
+        } else {
+            sim.subpopulations[i].setMigrationRates(others, rates);
+            sim.subpopulations[i].setSubpopulationSize(NORMSIZE[i]);
         }
     }
 }

@@ -51,7 +51,28 @@ prior_distributions = {
     # pop (CLAUDE.md 7.6.1). Deleting the draw deletes that nuisance variance outright, which is
     # why pi_loss's weight can now rise on demographic signal rather than being held down to keep
     # the mu draw out of D. See DEFAULT_MUTATION_RATE above for why there is no unknown to draw.
+
+    # Founder number for the re-founding arm (CLAUDE.md 7.9.12F). Log-uniform because F_c's drift
+    # term goes as ~1/K, so each doubling gets equal weight. Spans the two values the probe tested
+    # (40, 100) with room either side; the probe's F_c LEVEL hinted K > 40. Drawn only in the ON arm.
+    "refound_k": stats.loguniform(10, 400),
 }
+
+# THE RE-FOUNDING A/B (CLAUDE.md 7.9.12G, TODO 9.6 step 2; decided by Sohan 2026-09-22). Each trial
+# is ON with probability REFOUND_P_ON, else OFF (refound_k = -1, the persistent-deme model, verified
+# identical to the pre-toggle model). Both arms share one batch so the comparison is free of
+# between-batch differences. 75% ON because the ON arm has one more dimension to cover and batch 3
+# already holds 2,500 trials of the OFF model.
+REFOUND_P_ON = 0.75
+REFOUND_OFF = -1
+# Fixed, not drawn: every founder is an immigrant (full extinction-recolonization), which is what
+# the probe measured. 0.05 would be the bottleneck-only negative control. Recorded per row, like mu.
+REFOUND_M = 1.0
+
+# Parameter columns before the toggle existed (batch 3 and earlier). collect_batch uses this to
+# recognise, and on request read, the older layout -- never to pool it with a newer one.
+PRE_REFOUND_PARAM_NAMES = ["m", "total_migration", "pop", "numClusters", "mutation_rate",
+                           "recombination_rate"]
 
 # THE STATISTIC AND PARAMETER SETS, DEFINED ONCE. CLAUDE.md 10.2 records this bug class costing
 # two separate silent failures: the set was enumerated by hand in TEN places (fieldnames, the row
@@ -61,7 +82,9 @@ prior_distributions = {
 # with a blank ld_loss column. **Derive everything from these lists; never retype a statistic
 # name.** 10.2 asked for exactly this collapse "the next time the statistic set changes" -- adding
 # fc_loss on 2026-09-09 is that time.
-PARAM_NAMES = ["m", "total_migration", "pop", "numClusters", "mutation_rate", "recombination_rate"]
+# refound_k / refound_m added 2026-09-22 so every row records which model structure made it
+# (refound_k = -1 means OFF). _build_row has no fallback for them, so a missing one raises.
+PARAM_NAMES = PRE_REFOUND_PARAM_NAMES + ["refound_k", "refound_m"]
 _BASE_LOSSES = ["pi_loss", "fst_loss", "ld_loss", "ibd_loss", "dxy_loss", "genrel_loss"]
 
 # Temporal F_c is ON by default as of 2026-09-12 (target re-run under spec 49afd0877028, live trial
@@ -434,11 +457,17 @@ def model(parameter):
     numClusters = parameter.get("numClusters", prior_distributions["numClusters"].rvs()) * 33  #scale to 33, 66, or 99
     mutation_rate = parameter.get("mutation_rate", DEFAULT_MUTATION_RATE)
     recombination_rate = parameter.get("recombination_rate", DEFAULT_RECOMBINATION_RATE)
+    # The re-founding toggle: deliberately NO .get() fallback, unlike the lines above. It selects
+    # the model structure, so a caller that forgot it must crash, not silently get one arm
+    # (CLAUDE.md 7.9.12G). refound_k = -1 is the persistent-deme model.
+    refound_k = int(parameter["refound_k"])
+    refound_m = float(parameter["refound_m"])
 
     #Run the model - change silent to true for actual runs
     import Main   # lazy: see the note beside the imports at the top of this file
     Main.main(num_clusters=numClusters, migration_rates_modifier=m, population_modifier=pop,
-              total_migration=total_migration, mutation_rate=mutation_rate, recombination_rate=recombination_rate, silent=True)
+              total_migration=total_migration, mutation_rate=mutation_rate, recombination_rate=recombination_rate, silent=True,
+              refound_k=refound_k, refound_m=refound_m)
     
     
     #Read in the simulated output data (pi vector; dxy, Fst, relatedness matrices)
@@ -610,6 +639,11 @@ def sample_prior():
         # returned dict (and therefore in the CSV) so the output layout is unchanged and every
         # row still records the scale it was run at (CLAUDE.md 10, 7.9.3).
         "mutation_rate": DEFAULT_MUTATION_RATE,
+        # Re-founding arm: ON with prob REFOUND_P_ON, K floored to a whole number of founders
+        # (10..399). OFF rows carry REFOUND_OFF. REFOUND_M is fixed and recorded in both arms.
+        "refound_k": (int(np.floor(prior_distributions["refound_k"].rvs()))
+                      if np.random.random() < REFOUND_P_ON else REFOUND_OFF),
+        "refound_m": REFOUND_M,
     }
 
 
@@ -617,7 +651,9 @@ def read_parameters_from_csv(csv_path):
     '''
     Read parameter configurations from a CSV file.
     
-    Expected CSV columns: m, pop, numClusters, mutation_rate, recombination_rate
+    Expected CSV columns: m, pop, numClusters, mutation_rate, refound_k, refound_m
+    (total_migration and recombination_rate optional). refound_k/refound_m are REQUIRED -- the
+    toggle has no default; use refound_k = -1 for the persistent-deme model.
     Each row represents one simulation to run.
     
     :param csv_path: Path to the CSV file with parameters
@@ -634,7 +670,7 @@ def read_parameters_from_csv(csv_path):
             
             # Validate that all required columns are present (recombination_rate is optional --
             # fixed at DEFAULT_RECOMBINATION_RATE if absent, 5.4).
-            required_cols = {"m", "pop", "numClusters", "mutation_rate"}
+            required_cols = {"m", "pop", "numClusters", "mutation_rate", "refound_k", "refound_m"}
             csv_cols = set(reader.fieldnames)
             missing_cols = required_cols - csv_cols
             
@@ -652,7 +688,9 @@ def read_parameters_from_csv(csv_path):
                         "pop": int(float(row["pop"])),  # Convert to float first to handle scientific notation
                         "numClusters": int(float(row["numClusters"])),
                         "mutation_rate": float(row["mutation_rate"]),
-                        "recombination_rate": float(row["recombination_rate"]) if row.get("recombination_rate") not in (None, "") else DEFAULT_RECOMBINATION_RATE
+                        "recombination_rate": float(row["recombination_rate"]) if row.get("recombination_rate") not in (None, "") else DEFAULT_RECOMBINATION_RATE,
+                        "refound_k": int(float(row["refound_k"])),
+                        "refound_m": float(row["refound_m"]),
                     }
                     parameters_list.append(parameters)
                 except ValueError as e:
@@ -720,7 +758,8 @@ def run_sims_from_csv(input_csv, output_csv="../out/abc_results.csv", simToRun=-
                 f"pop={int(np.floor(parameters['pop']))}, "
                 f"numClusters={parameters['numClusters'] * 33}, "
                 f"mutation_rate={parameters['mutation_rate']:.6g}, "
-                f"recombination_rate={parameters.get('recombination_rate', DEFAULT_RECOMBINATION_RATE):.6g}..."
+                f"recombination_rate={parameters.get('recombination_rate', DEFAULT_RECOMBINATION_RATE):.6g}, "
+                f"refound_k={parameters['refound_k']}, refound_m={parameters['refound_m']:.4g}..."
             )
             
             try:
@@ -798,7 +837,8 @@ def run_abc_simulation(num_iterations, output_csv="../out/abc_results.csv"):
                 f"pop={int(np.floor(parameters['pop']))}, "
                 f"numClusters={parameters['numClusters'] * 33}, "
                 f"mutation_rate={parameters['mutation_rate']:.6g}, "
-                f"recombination_rate={parameters.get('recombination_rate', DEFAULT_RECOMBINATION_RATE):.6g}..."
+                f"recombination_rate={parameters.get('recombination_rate', DEFAULT_RECOMBINATION_RATE):.6g}, "
+                f"refound_k={parameters['refound_k']}, refound_m={parameters['refound_m']:.4g}..."
             )
             
             try:

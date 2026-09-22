@@ -1,2 +1,2 @@
-m,total_migration,pop,numClusters,mutation_rate,recombination_rate
-5e-05,0.30,25000,1,5.8e-07,1.02e-06
+m,total_migration,pop,numClusters,mutation_rate,recombination_rate,refound_k,refound_m
+5e-05,0.30,25000,1,5.8e-07,1.02e-06,-1,1.0

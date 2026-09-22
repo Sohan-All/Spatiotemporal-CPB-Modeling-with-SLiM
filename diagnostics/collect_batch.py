@@ -74,17 +74,21 @@ from abc_standardize import robust_sigma  # noqa: E402  -- the EXACT sigma the p
 # fc-enabled file (14) must not be poolable. Consequence: COMPUTE_FC here must match the run.
 # It defaults ON (2026-09-12), so re-analysing an older batch WITHOUT fc_loss needs COMPUTE_FC=0.
 EXPECTED_FIELDS = list(ABC.CSV_FIELDNAMES)
+# 2026-09-22: refound_k/refound_m joined the parameter columns (the re-founding toggle, CLAUDE.md
+# 7.9.12G). Batch 3 and earlier predate them; read those with --pre-refound, which swaps in the
+# old layout for the whole invocation. Still an EXACT match -- the two layouts never pool.
+PRE_REFOUND_FIELDS = ["iteration"] + list(ABC.PRE_REFOUND_PARAM_NAMES) + list(ABC.LOSS_NAMES)
 
 # Earlier layouts, recognised ONLY so the error message can say which batch a file came from
 # instead of "header does not match". Built from the base columns, not from EXPECTED_FIELDS, so
 # they stay correct whichever way COMPUTE_FC is set.
-_BASE_FIELDS = ["iteration"] + list(ABC.PARAM_NAMES)
+_BASE_FIELDS = ["iteration"] + list(ABC.PRE_REFOUND_PARAM_NAMES)
 LEGACY_LAYOUTS = {
     "BATCH 1 (12 columns: no ld_loss, no fc_loss)":
         _BASE_FIELDS + [s for s in ABC._BASE_LOSSES if s != "ld_loss"],
     "BATCH 2 / LD pilot (13 columns: ld_loss, no fc_loss)":
         _BASE_FIELDS + list(ABC._BASE_LOSSES),
-    "an F_c batch (14 columns, ends in fc_loss)":
+    "an F_c batch before the re-founding toggle, e.g. batch 3 (14 columns) -- use --pre-refound":
         _BASE_FIELDS + list(ABC._BASE_LOSSES) + ["fc_loss"],
 }
 
@@ -101,7 +105,7 @@ _unknown = [f for f in FITTED if f not in LOSSES]
 if _unknown:
     raise SystemExit(f"FITTED names not in LOSSES: {_unknown}. fc_loss needs COMPUTE_FC=1 (the "
                      f"default); an older batch without it needs FITTED edited as well.")
-PARAMS = ["pop", "total_migration", "m", "numClusters", "mutation_rate"]
+PARAMS = ["pop", "total_migration", "m", "numClusters", "mutation_rate", "refound_k"]
 
 # Replicate noise floor: run-to-run mean pairwise |diff| at IDENTICAL parameters, all five dice
 # re-rolled. Re-measured 2026-09-12 by diagnostics/fc_loss_floor.py (CLAUDE.md 7.9.10C): 5 reps at
@@ -626,6 +630,7 @@ def main():
     p = argparse.ArgumentParser()
     # Defaults point at BATCH 3 (the F_c pilot, 2026-09-12). Older batches need both paths passed
     # explicitly AND COMPUTE_FC=0 -- write_concat refuses to overwrite a different layout anyway.
+    # Batch 3 itself now needs --pre-refound (it predates the refound_k/refound_m columns).
     p.add_argument("--raw-dir", default="../out/batch3_raw")
     # NOT ../out/abc_results.csv -- that is each CHTC job's own write path, and a tracked
     # file there is cloned into every job and appended to (CLAUDE.md 7.6.0).
@@ -633,7 +638,14 @@ def main():
     p.add_argument("--prefix", default="abc_results_")
     p.add_argument("--expect-trials", type=int, default=5)
     p.add_argument("--no-write", action="store_true", help="report only; write nothing")
+    p.add_argument("--pre-refound", action="store_true",
+                   help="read a batch from before the re-founding toggle (batch 3 and earlier)")
     args = p.parse_args()
+
+    if args.pre_refound:
+        global EXPECTED_FIELDS, PARAMS
+        EXPECTED_FIELDS = PRE_REFOUND_FIELDS
+        PARAMS = [c for c in PARAMS if c in EXPECTED_FIELDS]
 
     raw_dir = Path(args.raw_dir)
     out_path = Path(args.out)
@@ -641,6 +653,15 @@ def main():
     jobs, problems = load_jobs(raw_dir, args.prefix)
     counts, missing, short = report_inventory(jobs, problems, args.expect_trials)
     A = to_arrays(jobs)
+    if "refound_k" in A:
+        on = A["refound_k"] >= 0
+        print()
+        print(f"  RE-FOUNDING ARMS: {int(on.sum())} ON, {int((~on).sum())} OFF (refound_k = -1).")
+        if on.any() and (~on).any():
+            print("  !! The sections below POOL BOTH ARMS. They are different model structures, so read")
+            print("  !! them as a first look only: refound_k's rank puts every OFF trial tied at the")
+            print("  !! bottom, so its column acts as an ON/OFF indicator plus K. Per-arm analysis is")
+            print("  !! TODO 9.6 step 4 and is not written yet.")
     report_failures(A, jobs, counts, short, args.expect_trials)
     report_coverage(A)
     scale_rows = report_statistics(A)
