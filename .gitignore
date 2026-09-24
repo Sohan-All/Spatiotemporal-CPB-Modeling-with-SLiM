@@ -27,6 +27,8 @@ out/batch1_raw/
 out/pilot_raw/
 out/pilot_raw_asreturned/
 out/*_raw/
+# Batch 5 (5x5 CHTC smoke test of the re-founding prior) came back raw, not as out/batch5_raw/.
+out/batch5/
 
 # HTCondor logs returned with each batch (.log/.out/.err per job, plus the zip). 1,500 files for
 # batch 3 alone; the numbers worth keeping from them are written up in CLAUDE.md 3.1.

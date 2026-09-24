@@ -539,8 +539,10 @@ def report_gradient(A):
         v = np.asarray(meds[s])
         nper = len(A[s]) / 10.0
         se = 1.2533 * scale_sigma(A[s]) / math.sqrt(nper)
-        best = int(np.argmin(v))
-        flat = [k + 1 for k in range(10) if v[k] - v.min() < se]
+        # nan-aware: an empty decile (small batches) has a NaN median, and np.argmin
+        # returns the first NaN's index -- reporting the empty bin as the minimum.
+        best = int(np.nanargmin(v))
+        flat = [k + 1 for k in range(10) if v[k] - np.nanmin(v) < se]
         print(f"  {s:10s} min at decile {best + 1} ({edges[best]:.0f}-{edges[best+1]:.0f}), "
               f"SE(median)~{se:.6f}")
         print(f"  {'':10s} deciles within 1 SE of the minimum: {flat}")
