@@ -11,6 +11,8 @@ out/simTreeSeq.trees
 # Private working notes
 CLAUDE.md
 TODO.md
+OLD_LOGS.md
+REFERENCES.md
 
 # --- ABC batch outputs -------------------------------------------------------
 # The CHTC wrapper (run_code.sh) clones origin/main into every job, and the job
@@ -29,6 +31,7 @@ out/pilot_raw_asreturned/
 out/*_raw/
 # Batch 5 (5x5 CHTC smoke test of the re-founding prior) came back raw, not as out/batch5_raw/.
 out/batch5/
+out/batch6/
 
 # HTCondor logs returned with each batch (.log/.out/.err per job, plus the zip). 1,500 files for
 # batch 3 alone; the numbers worth keeping from them are written up in CLAUDE.md 3.1.

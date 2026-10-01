@@ -42,6 +42,7 @@ Usage:
     python collect_batch.py                        # concatenate + full report
     python collect_batch.py --no-write             # report only, touch nothing
     python collect_batch.py --raw-dir ../out/batch2_raw --out ../out/abc_results_b2.csv
+    python collect_batch.py --raw-dir ../out/batch6 --no-write --by-arm   # re-founding ON / OFF
 """
 import sys as _sys
 from pathlib import Path as _Path
@@ -512,45 +513,52 @@ def report_decomposition(A):
     return out
 
 
-def report_gradient(A):
-    """Median loss by pop decile -- does the fitted set actually resolve POPMULT, and does its
+def report_gradient(A, param="pop", edges=None, label=None):
+    """Median loss by `param` bin -- does the fitted set actually resolve the parameter, and does its
     preference run into the ceiling? TODO 4 asks whether the N marginal escapes the prior; a
-    gradient still falling in the top decile is the warning sign, since 6.7 already had to raise
-    the ceiling once for exactly this reason."""
+    gradient still falling in the top bin is the warning sign, since 6.7 already had to raise
+    the ceiling once for exactly this reason. Defaults to `pop` over PRIOR_POP deciles; the
+    per-arm report also runs it on refound_k over log-spaced bins (TODO: the K ceiling)."""
+    if edges is None:
+        edges = np.linspace(*PRIOR_POP, 11)
+    nb = len(edges) - 1
     print()
     print("=" * 78)
-    print("8. LOSS GRADIENT IN `pop`  (median per decile, raw units)")
+    print(label or f"8. LOSS GRADIENT IN `{param}`  (median per bin, raw units)")
     print("=" * 78)
-    lo, hi = PRIOR_POP
-    edges = np.linspace(lo, hi, 11)
-    idx = np.clip(np.digitize(A["pop"], edges) - 1, 0, 9)
-    print(f"  {'pop bin':>17s} {'n':>5s} " + " ".join(f"{s[:10]:>11s}" for s in LOSSES))
+    idx = np.clip(np.digitize(A[param], edges) - 1, 0, nb - 1)
+    print(f"  {param + ' bin':>17s} {'n':>5s} " + " ".join(f"{s[:10]:>11s}" for s in LOSSES))
     meds = {s: [] for s in LOSSES}
-    for k in range(10):
+    counts = []
+    for k in range(nb):
         m = idx == k
-        row = " ".join(f"{np.median(A[s][m]):11.6f}" for s in LOSSES)
+        counts.append(int(m.sum()))
         for s in LOSSES:
-            meds[s].append(float(np.median(A[s][m])))
-        print(f"  {edges[k]:7.0f}-{edges[k+1]:7.0f} {int(m.sum()):5d} {row}")
+            meds[s].append(float(np.median(A[s][m])) if m.any() else np.nan)
+        row = " ".join(f"{meds[s][-1]:11.6f}" for s in LOSSES)
+        print(f"  {edges[k]:7.4g}-{edges[k+1]:7.4g} {int(m.sum()):5d} {row}")
     print()
-    print("  Decile medians carry their own error: SE(median) ~ 1.2533*sigma/sqrt(n). Differences")
+    print("  Bin medians carry their own error: SE(median) ~ 1.2533*sigma/sqrt(n). Differences")
     print("  smaller than that are not a turning point, however suggestive the ordering looks.")
     for s in FITTED:
         v = np.asarray(meds[s])
-        nper = len(A[s]) / 10.0
-        se = 1.2533 * scale_sigma(A[s]) / math.sqrt(nper)
-        # nan-aware: an empty decile (small batches) has a NaN median, and np.argmin
+        # per-bin SE, since log-spaced K bins are not equally filled
+        ses = np.array([1.2533 * scale_sigma(A[s][idx == k]) / math.sqrt(max(counts[k], 1))
+                        for k in range(nb)])
+        # nan-aware: an empty bin (small batches) has a NaN median, and np.argmin
         # returns the first NaN's index -- reporting the empty bin as the minimum.
         best = int(np.nanargmin(v))
-        flat = [k + 1 for k in range(10) if v[k] - np.nanmin(v) < se]
-        print(f"  {s:10s} min at decile {best + 1} ({edges[best]:.0f}-{edges[best+1]:.0f}), "
+        se = float(ses[best])
+        flat = [k + 1 for k in range(nb) if v[k] - np.nanmin(v) < se]
+        print(f"  {s:10s} min at bin {best + 1} ({edges[best]:.4g}-{edges[best+1]:.4g}), "
               f"SE(median)~{se:.6f}")
-        print(f"  {'':10s} deciles within 1 SE of the minimum: {flat}")
-        tail = "FALLING at the ceiling -- prior may still truncate" if v[-1] < v[-2] - se else \
-               "flat/rising at the ceiling -- no evidence the prior truncates"
-        print(f"  {'':10s} top decile: {tail}")
-    print("  A minimum in decile 10 with the curve STILL FALLING means the prior is truncating")
-    print("  the N marginal -- the failure 6.7 caught at POPMULT_MAX=12000. A flat tail instead")
+        print(f"  {'':10s} bins within 1 SE of the minimum: {flat}")
+        drop = v[-2] - v[-1]
+        se2 = math.hypot(ses[-1], ses[-2])
+        tail = "FALLING at the ceiling -- prior may still truncate" if drop > se2 else                "flat/rising at the ceiling -- no evidence the prior truncates"
+        print(f"  {'':10s} top bin: {tail}  (last step {-drop:+.6f}, SE {se2:.6f})")
+    print("  A minimum in the top bin with the curve STILL FALLING means the prior is truncating")
+    print("  the marginal -- the failure 6.7 caught at POPMULT_MAX=12000. A flat tail instead")
     print("  means the ceiling is adequate but the marginal is broad, not sharply peaked.")
 
 
@@ -594,6 +602,43 @@ def report_recommendation(scale_rows, decomp, A):
     print("  The floors in section 4 are one parameter point (7.9.10C). They do not enter this")
     print("  rule -- these weights come from section 7, which needs no floor at all. Use the floor")
     print("  as a VETO only (7.4.1): a fitted statistic whose floor/sigma nears 1 should be dropped.")
+
+
+# ------------------------------------------------------------------ per-arm (TODO 9.6 step 4)
+
+# refound_k ~ loguniform(10, 400) floored (ABCAnalysisNoRedis REFOUND_*). Log-spaced so each bin
+# holds about the same prior mass.
+K_EDGES = np.geomspace(10.0, 400.0, 9)
+
+
+def subset(A, mask):
+    return {c: v[mask] for c, v in A.items()}
+
+
+def report_arm(A, name):
+    """Sections 3-9 on ONE re-founding arm. The pooled report mixes two model structures, and
+    refound_k's rank ties every OFF row at the bottom, so its K column is mostly an ON/OFF
+    indicator. Within an arm that confound is gone: OFF has K fixed (the decomposition drops it)
+    and ON has K spread log-uniformly, so its unique R2 is a real K effect.
+
+    CAVEAT carried into every per-arm number: the NOISE_FLOOR constants were measured under
+    persistent demes at POPMULT 5000. The re-founding floors (7.9.12H, K=40/100 at POPMULT 2000)
+    are in out/fc_loss_floor_refound_k*.jsonl and are NOT used here, so section 4's floor/sigma
+    for the ON arm is indicative only. Weights come from section 7 anyway."""
+    print()
+    print("#" * 78)
+    print(f"#  ARM: {name}   ({len(A['pop'])} trials)")
+    print("#" * 78)
+    report_coverage(A)
+    scale_rows = report_statistics(A)
+    report_information(A)
+    decomp = report_decomposition(A)
+    report_gradient(A)
+    if np.std(A["refound_k"]) > 0:
+        report_gradient(A, "refound_k", K_EDGES,
+                        label="8b. LOSS GRADIENT IN `refound_k`  (median per log-spaced bin)")
+    report_recommendation(scale_rows, decomp, A)
+    return decomp
 
 
 # ------------------------------------------------------------------ main
@@ -642,6 +687,9 @@ def main():
     p.add_argument("--no-write", action="store_true", help="report only; write nothing")
     p.add_argument("--pre-refound", action="store_true",
                    help="read a batch from before the re-founding toggle (batch 3 and earlier)")
+    p.add_argument("--by-arm", action="store_true",
+                   help="run sections 3-9 separately on the re-founding ON and OFF arms "
+                        "instead of pooled (TODO 9.6 step 4)")
     args = p.parse_args()
 
     if args.pre_refound:
@@ -660,17 +708,28 @@ def main():
         print()
         print(f"  RE-FOUNDING ARMS: {int(on.sum())} ON, {int((~on).sum())} OFF (refound_k = -1).")
         if on.any() and (~on).any():
-            print("  !! The sections below POOL BOTH ARMS. They are different model structures, so read")
-            print("  !! them as a first look only: refound_k's rank puts every OFF trial tied at the")
-            print("  !! bottom, so its column acts as an ON/OFF indicator plus K. Per-arm analysis is")
-            print("  !! TODO 9.6 step 4 and is not written yet.")
+            if not args.by_arm:
+                print("  !! The sections below POOL BOTH ARMS. They are different model structures, so read")
+                print("  !! them as a first look only: refound_k's rank puts every OFF trial tied at the")
+                print("  !! bottom, so its column acts as an ON/OFF indicator plus K. Use --by-arm.")
     report_failures(A, jobs, counts, short, args.expect_trials)
-    report_coverage(A)
-    scale_rows = report_statistics(A)
-    report_information(A)
-    decomp = report_decomposition(A)
-    report_gradient(A)
-    report_recommendation(scale_rows, decomp, A)
+    if args.by_arm:
+        if "refound_k" not in A:
+            raise SystemExit("--by-arm needs the refound_k column; this batch predates the toggle.")
+        on = A["refound_k"] >= 0
+        for name, mask in (("RE-FOUNDING ON (refound_k >= 1)", on),
+                           ("RE-FOUNDING OFF (persistent demes, refound_k = -1)", ~on)):
+            if mask.sum() < 20:
+                print(f"\n  {name}: only {int(mask.sum())} trials -- skipped.")
+                continue
+            report_arm(subset(A, mask), name)
+    else:
+        report_coverage(A)
+        scale_rows = report_statistics(A)
+        report_information(A)
+        decomp = report_decomposition(A)
+        report_gradient(A)
+        report_recommendation(scale_rows, decomp, A)
 
     if args.no_write:
         print("\n--no-write: nothing written.")
