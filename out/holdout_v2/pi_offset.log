@@ -1,0 +1,16 @@
+sample_exclusions: [S221,S222,S223]   reference: C:\Users\sohan\Documents\School\Entomology Research\Spatiotemporal-CPB-Modeline-with-SLiM\out\holdout_v2
+Reference: 156 accepted hold-out trials.
+
+year  sites mean n  pi resid predicted corrected dxy resid
+2015     22    7.4   -0.0114   -0.0198   +0.0084   +0.0130
+      without isolates: pi resid -0.0033   lowest sites: Mortensen9-2015 -0.182 (n=5, e=0.30), H15-2015 -0.040 (n=8, e=0.23), H41-2015 -0.037 (n=7, e=0.24)
+2019     17    6.8   -0.0014   -0.0198   +0.0184   +0.0160
+      without isolates: pi resid -0.0014   lowest sites: OkrayGrosheks40-2019 -0.024 (n=7, e=0.20), Wysocki570-2019 -0.022 (n=7, e=0.25), Alsum59-2019 -0.019 (n=7, e=0.29)
+2023     20    6.8   -0.0022   -0.0203   +0.0181   +0.0156
+      without isolates: pi resid +0.0007   lowest sites: H41-2023 -0.057 (n=4, e=0.24), Airport04-2023 -0.029 (n=7, e=0.23), H15-2023 -0.024 (n=7, e=0.29)
+
+Between-year spread of mean pi resid: 0.0100 raw -> 0.0100 after the predicted factor
+Site regression of pi resid on e_bar/(2n-1), 59 sites:
+  with year effects: slope -2.64 (SE 0.69); expected about -1
+  pooled, no year effects: slope -2.61
+  correlation -0.447

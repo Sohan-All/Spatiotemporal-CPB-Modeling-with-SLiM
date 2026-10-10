@@ -5,7 +5,7 @@ import sys
 from sample_exclusions import EXCLUDED_SAMPLES, exclusion_id
 
 # Only years whose sample set changed need re-running (2026-10-09: 2023 only, CLAUDE.md 7.9.16).
-YEARS = ("2015", "2019", "2023")
+YEARS = ("2023",)
 
 
 def write_pixy_popfile(year):
@@ -31,8 +31,14 @@ def main():
             inVCF = f"chr{i}_cpb.vcf.gz"
             outFolder = f"statsChr{i}_{year}"
             prefix = f"chr{i}_{year}"
-            print(f"calculating pi for chr {i} year {year}") 
+            print(f"calculating pi for chr {i} year {year}")
             os.makedirs(outFolder, exist_ok=True)
+            # Remove the previous run's output first: if pixy fails, AverageData must find nothing
+            # rather than silently re-read stale files (2026-10-09: stale 2023 output with H41 at n=7).
+            for stat in ("pi", "dxy", "fst"):
+                stale = os.path.join(outFolder, f"{prefix}_{stat}.txt")
+                if os.path.exists(stale):
+                    os.remove(stale)
             
             with open("temp.txt", 'w') as output_file:
                 cmd = f"zcat {inVCF} | tail -n 1"
@@ -47,7 +53,7 @@ def main():
                 parts = line.split()
                 ending_base = parts[1]
             
-            subprocess.run(['pixy', '--stats', 'pi', 'dxy', 'fst', '--vcf', inVCF, '--populations', popFile, "--window_size", ending_base, "--n_cores", "8", "--output_folder", outFolder, "--output_prefix", prefix, "--bypass_invariant_check", "--silent"])
+            subprocess.run(['pixy', '--stats', 'pi', 'dxy', 'fst', '--vcf', inVCF, '--populations', popFile, "--window_size", ending_base, "--n_cores", "8", "--output_folder", outFolder, "--output_prefix", prefix, "--bypass_invariant_check", "--silent"], check=True)
     
 if __name__ == "__main__":
     main()

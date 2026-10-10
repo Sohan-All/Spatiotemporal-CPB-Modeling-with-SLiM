@@ -1,0 +1,262 @@
+sample_exclusions: [S221,S222,S223]
+2015: 24 sites, mean per-site pi = 0.0121171
+  244 row(s) exceeded what pixy's count_comparisons can hold; the analytic denominator was used instead. Affected rows:
+    2015 chr1 pi H53-2015: expected 4604408871, pixy reported -2147483648
+    2015 chr1 dxy Alsum140-2015 x H53-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy Alsum25-2015 x H15-2015: expected 2305479264, pixy reported -2147483648
+    2015 chr1 dxy Alsum25-2015 x H53-2015: expected 5475513252, pixy reported -2147483648
+    2015 chr1 dxy Alsum25-2015 x Refuge-2015: expected 2305479264, pixy reported -2147483648
+    2015 chr1 dxy C44-L15-2015 x H53-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy C5-2015 x H53-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy GarrisonNE-2015 x H53-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H10-2015 x H53-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H15-2015 x H53-2015: expected 3982191456, pixy reported -2147483648
+    2015 chr1 dxy H41-2015 x H53-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x BrilowskiHome-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x BrilowskiNE-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x Hesler-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x LaszSE-O14-2015: expected 2488869660, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x PFEast-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x Paramount257-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x Paramount528-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x Paramount652-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x Refuge-2015: expected 3982191456, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x SilverValley-2015: expected 2488869660, pixy reported -2147483648
+    2015 chr1 dxy H53-2015 x Wysocki122-2015: expected 3484417524, pixy reported -2147483648
+    2015 chr1 dxy Mortensen9-2015 x H53-2015: expected 2488869660, pixy reported -2147483648
+    2015 chr2 pi H53-2015: expected 4173535953, pixy reported -2147483648
+    2015 chr2 dxy Alsum140-2015 x H53-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy Alsum25-2015 x H53-2015: expected 4963123836, pixy reported -2147483648
+    2015 chr2 dxy C44-L15-2015 x H53-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy C5-2015 x H53-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy GarrisonNE-2015 x H53-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H10-2015 x H53-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H15-2015 x H53-2015: expected 3609544608, pixy reported -2147483648
+    2015 chr2 dxy H41-2015 x H53-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x BrilowskiHome-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x BrilowskiNE-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x Hesler-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x LaszSE-O14-2015: expected 2255965380, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x PFEast-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x Paramount257-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x Paramount528-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x Paramount652-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x Refuge-2015: expected 3609544608, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x SilverValley-2015: expected 2255965380, pixy reported -2147483648
+    2015 chr2 dxy H53-2015 x Wysocki122-2015: expected 3158351532, pixy reported -2147483648
+    2015 chr2 dxy Mortensen9-2015 x H53-2015: expected 2255965380, pixy reported -2147483648
+    2015 chr3 pi H53-2015: expected 4182736114, pixy reported -2147483648
+    2015 chr3 dxy Alsum140-2015 x H53-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy Alsum25-2015 x H53-2015: expected 4974064568, pixy reported -2147483648
+    2015 chr3 dxy C44-L15-2015 x H53-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy C5-2015 x H53-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy GarrisonNE-2015 x H53-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H10-2015 x H53-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H15-2015 x H53-2015: expected 3617501504, pixy reported -2147483648
+    2015 chr3 dxy H41-2015 x H53-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x BrilowskiHome-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x BrilowskiNE-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x Hesler-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x LaszSE-O14-2015: expected 2260938440, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x PFEast-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x Paramount257-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x Paramount528-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x Paramount652-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x Refuge-2015: expected 3617501504, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x SilverValley-2015: expected 2260938440, pixy reported -2147483648
+    2015 chr3 dxy H53-2015 x Wysocki122-2015: expected 3165313816, pixy reported -2147483648
+    2015 chr3 dxy Mortensen9-2015 x H53-2015: expected 2260938440, pixy reported -2147483648
+    2015 chr4 pi H53-2015: expected 4253751065, pixy reported -2147483648
+    2015 chr4 dxy Alsum140-2015 x H53-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy Alsum25-2015 x H53-2015: expected 5058514780, pixy reported -2147483648
+    2015 chr4 dxy C44-L15-2015 x H53-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy C5-2015 x H53-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy GarrisonNE-2015 x H53-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H10-2015 x H53-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H15-2015 x H53-2015: expected 3678919840, pixy reported -2147483648
+    2015 chr4 dxy H41-2015 x H53-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x BrilowskiHome-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x BrilowskiNE-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x Hesler-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x LaszSE-O14-2015: expected 2299324900, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x PFEast-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x Paramount257-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x Paramount528-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x Paramount652-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x Refuge-2015: expected 3678919840, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x SilverValley-2015: expected 2299324900, pixy reported -2147483648
+    2015 chr4 dxy H53-2015 x Wysocki122-2015: expected 3219054860, pixy reported -2147483648
+    2015 chr4 dxy Mortensen9-2015 x H53-2015: expected 2299324900, pixy reported -2147483648
+    2015 chr5 pi H53-2015: expected 3897230942, pixy reported -2147483648
+    2015 chr5 dxy Alsum140-2015 x H53-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy Alsum25-2015 x H53-2015: expected 4634544904, pixy reported -2147483648
+    2015 chr5 dxy C44-L15-2015 x H53-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy C5-2015 x H53-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy GarrisonNE-2015 x H53-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H10-2015 x H53-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H15-2015 x H53-2015: expected 3370578112, pixy reported -2147483648
+    2015 chr5 dxy H41-2015 x H53-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x BrilowskiHome-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x BrilowskiNE-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x Hesler-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x PFEast-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x Paramount257-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x Paramount528-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x Paramount652-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x Refuge-2015: expected 3370578112, pixy reported -2147483648
+    2015 chr5 dxy H53-2015 x Wysocki122-2015: expected 2949255848, pixy reported -2147483648
+    2015 chr6 pi H53-2015: expected 2806474420, pixy reported -2147483648
+    2015 chr6 dxy Alsum25-2015 x H53-2015: expected 3337429040, pixy reported -2147483648
+    2015 chr6 dxy H15-2015 x H53-2015: expected 2427221120, pixy reported -2147483648
+    2015 chr6 dxy H53-2015 x Refuge-2015: expected 2427221120, pixy reported -2147483648
+    2015 chr7 pi H53-2015: expected 4115179220, pixy reported -2147483648
+    2015 chr7 dxy Alsum140-2015 x H53-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy Alsum25-2015 x H53-2015: expected 4893726640, pixy reported -2147483648
+    2015 chr7 dxy C44-L15-2015 x H53-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy C5-2015 x H53-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy GarrisonNE-2015 x H53-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H10-2015 x H53-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H15-2015 x H53-2015: expected 3559073920, pixy reported -2147483648
+    2015 chr7 dxy H41-2015 x H53-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x BrilowskiHome-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x BrilowskiNE-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x Hesler-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x LaszSE-O14-2015: expected 2224421200, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x PFEast-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x Paramount257-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x Paramount528-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x Paramount652-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x Refuge-2015: expected 3559073920, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x SilverValley-2015: expected 2224421200, pixy reported -2147483648
+    2015 chr7 dxy H53-2015 x Wysocki122-2015: expected 3114189680, pixy reported -2147483648
+    2015 chr7 dxy Mortensen9-2015 x H53-2015: expected 2224421200, pixy reported -2147483648
+    2015 chr8 pi H53-2015: expected 3924120692, pixy reported -2147483648
+    2015 chr8 dxy Alsum140-2015 x H53-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy Alsum25-2015 x H53-2015: expected 4666521904, pixy reported -2147483648
+    2015 chr8 dxy C44-L15-2015 x H53-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy C5-2015 x H53-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy GarrisonNE-2015 x H53-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H10-2015 x H53-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H15-2015 x H53-2015: expected 3393834112, pixy reported -2147483648
+    2015 chr8 dxy H41-2015 x H53-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x BrilowskiHome-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x BrilowskiNE-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x Hesler-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x PFEast-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x Paramount257-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x Paramount528-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x Paramount652-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x Refuge-2015: expected 3393834112, pixy reported -2147483648
+    2015 chr8 dxy H53-2015 x Wysocki122-2015: expected 2969604848, pixy reported -2147483648
+    2015 chr9 pi H53-2015: expected 3530815391, pixy reported -2147483648
+    2015 chr9 dxy Alsum140-2015 x H53-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy Alsum25-2015 x H53-2015: expected 4198807492, pixy reported -2147483648
+    2015 chr9 dxy C44-L15-2015 x H53-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy C5-2015 x H53-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy GarrisonNE-2015 x H53-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H10-2015 x H53-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H15-2015 x H53-2015: expected 3053678176, pixy reported -2147483648
+    2015 chr9 dxy H41-2015 x H53-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x BrilowskiHome-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x BrilowskiNE-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x Hesler-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x PFEast-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x Paramount257-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x Paramount528-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x Paramount652-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x Refuge-2015: expected 3053678176, pixy reported -2147483648
+    2015 chr9 dxy H53-2015 x Wysocki122-2015: expected 2671968404, pixy reported -2147483648
+    2015 chr10 pi H53-2015: expected 3316028504, pixy reported -2147483648
+    2015 chr10 dxy Alsum140-2015 x H53-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy Alsum25-2015 x H53-2015: expected 3943385248, pixy reported -2147483648
+    2015 chr10 dxy C44-L15-2015 x H53-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy C5-2015 x H53-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy GarrisonNE-2015 x H53-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H10-2015 x H53-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H15-2015 x H53-2015: expected 2867916544, pixy reported -2147483648
+    2015 chr10 dxy H41-2015 x H53-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x BrilowskiHome-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x BrilowskiNE-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x Hesler-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x PFEast-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x Paramount257-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x Paramount528-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x Paramount652-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x Refuge-2015: expected 2867916544, pixy reported -2147483648
+    2015 chr10 dxy H53-2015 x Wysocki122-2015: expected 2509426976, pixy reported -2147483648
+    2015 chr11 pi H53-2015: expected 3438671775, pixy reported -2147483648
+    2015 chr11 dxy Alsum140-2015 x H53-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy Alsum25-2015 x H53-2015: expected 4089231300, pixy reported -2147483648
+    2015 chr11 dxy C44-L15-2015 x H53-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy C5-2015 x H53-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy GarrisonNE-2015 x H53-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H10-2015 x H53-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H15-2015 x H53-2015: expected 2973986400, pixy reported -2147483648
+    2015 chr11 dxy H41-2015 x H53-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x BrilowskiHome-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x BrilowskiNE-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x Hesler-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x PFEast-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x Paramount257-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x Paramount528-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x Paramount652-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x Refuge-2015: expected 2973986400, pixy reported -2147483648
+    2015 chr11 dxy H53-2015 x Wysocki122-2015: expected 2602238100, pixy reported -2147483648
+    2015 chr12 pi H53-2015: expected 3388136620, pixy reported -2147483648
+    2015 chr12 dxy Alsum140-2015 x H53-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy Alsum25-2015 x H53-2015: expected 4029135440, pixy reported -2147483648
+    2015 chr12 dxy C44-L15-2015 x H53-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy C5-2015 x H53-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy GarrisonNE-2015 x H53-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H10-2015 x H53-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H15-2015 x H53-2015: expected 2930280320, pixy reported -2147483648
+    2015 chr12 dxy H41-2015 x H53-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x BrilowskiHome-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x BrilowskiNE-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x Hesler-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x PFEast-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x Paramount257-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x Paramount528-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x Paramount652-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x Refuge-2015: expected 2930280320, pixy reported -2147483648
+    2015 chr12 dxy H53-2015 x Wysocki122-2015: expected 2563995280, pixy reported -2147483648
+    2015 chr13 pi H53-2015: expected 2518297848, pixy reported -2147483648
+    2015 chr13 dxy Alsum25-2015 x H53-2015: expected 2994732576, pixy reported -2147483648
+    2015 chr13 dxy H15-2015 x H53-2015: expected 2177987328, pixy reported -2147483648
+    2015 chr13 dxy H53-2015 x Refuge-2015: expected 2177987328, pixy reported -2147483648
+    2015 chr14 pi H53-2015: expected 2965160501, pixy reported -2147483648
+    2015 chr14 dxy Alsum140-2015 x H53-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy Alsum25-2015 x H53-2015: expected 3526136812, pixy reported -2147483648
+    2015 chr14 dxy C44-L15-2015 x H53-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy C5-2015 x H53-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy GarrisonNE-2015 x H53-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H10-2015 x H53-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H15-2015 x H53-2015: expected 2564463136, pixy reported -2147483648
+    2015 chr14 dxy H41-2015 x H53-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x BrilowskiHome-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x BrilowskiNE-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x Hesler-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x PFEast-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x Paramount257-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x Paramount528-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x Paramount652-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x Refuge-2015: expected 2564463136, pixy reported -2147483648
+    2015 chr14 dxy H53-2015 x Wysocki122-2015: expected 2243905244, pixy reported -2147483648
+    2015 chr16 pi H53-2015: expected 2306985187, pixy reported -2147483648
+    2015 chr16 dxy Alsum25-2015 x H53-2015: expected 2743441844, pixy reported -2147483648
+    2015 chr17 dxy Alsum25-2015 x H53-2015: expected 2208924344, pixy reported -2147483648
+2019: 17 sites, mean per-site pi = 0.012298
+Traceback (most recent call last):
+  File "/data2/sohan/AverageData.py", line 313, in <module>
+    main()
+    ~~~~^^
+  File "/data2/sohan/AverageData.py", line 227, in main
+    check_comparisons(number(values[PI_COMPARISONS]), piPerSite[i],
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      noSites, label, repairs)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/sohan/AverageData.py", line 171, in check_comparisons
+    raise ValueError(
+    ...<6 lines>...
+    )
+ValueError: 2023 chr1 pi H41-2023: pixy reports count_comparisons = 596018787 but the sample sizes imply 183390396, which is small enough for pixy to have represented exactly (183390396 <= INT32_MAX). This is not the known overflow. The analytic denominator cannot be trusted here -- check count_missing, the column offsets at the top of this script, and the specifier matrix sample counts

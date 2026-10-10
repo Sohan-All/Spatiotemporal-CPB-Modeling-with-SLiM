@@ -33,7 +33,14 @@ Sensitivity (reported, not the verdict): equal weights; 20% acceptance; batch 3 
 No pop posterior is reported (CLAUDE.md 7): the sensitivity-surface section shows where accepted
 trials sit in (pop, total_migration, numClusters), relative to the prior, and nothing more.
 
-Usage (from diagnostics/):  python holdout_2023.py [--out ../out/holdout]
+Usage (from diagnostics/):  python holdout_2023.py [--out ../out/holdout] [--verify-against CSV]
+
+--verify-against: for a run AFTER a target changed (2026-10-10: the 2023 target without S221-S223,
+CLAUDE.md 7.9.16). The batch CSVs' losses were scored against the OLD target, so the CSV self-check
+cannot pass; instead every trial must reproduce, exactly, an earlier holdout_trials.csv (from a run
+that passed the CSV check) on everything the target change cannot touch: the per-year losses of
+the years whose target is unchanged, and the simulated 2023 summaries. Only --changed-years
+(default 2023) may differ.
 """
 import sys as _sys
 from pathlib import Path as _Path
@@ -154,9 +161,14 @@ def load(ABC, obs, masks):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(ROOT / "out" / "holdout"))
+    ap.add_argument("--verify-against", default=None,
+                    help="earlier holdout_trials.csv to verify against instead of the batch CSVs")
+    ap.add_argument("--changed-years", nargs="+", default=["2023"])
     args = ap.parse_args()
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+    if args.verify_against is not None:   # resolve before the chdir below
+        args.verify_against = str(Path(args.verify_against).resolve())
 
     os.chdir(ROOT / "Python_Code")   # ABC reads its inputs by relative path
     import ABCAnalysisNoRedis as ABC
@@ -173,14 +185,38 @@ def main():
     src = np.array([r["source"] for r in rows])
     print(f"Loaded {n} trials: " + ", ".join(f"{s} {int((src == s).sum())}" for s in np.unique(src)))
 
-    # --- self-check: per-year losses must reproduce the CSV (production's mean over years)
-    for s in ["pi", "fst"]:
-        recon = np.nanmean(np.column_stack([T[f"{s}_{y}"] for y in YEARS]), axis=1)
-        bad = ~np.isclose(recon, T[f"csv_{s}_loss"], rtol=1e-9, atol=1e-15)
-        if bad.any():
-            raise SystemExit(f"{s}_loss: {int(bad.sum())} trials do not reproduce the CSV "
-                             f"(max abs diff {np.max(np.abs(recon - T[f'csv_{s}_loss'])):.3g})")
-    print("Self-check: per-year pi/fst losses reproduce the CSV losses for every trial.")
+    if args.verify_against is None:
+        # --- self-check: per-year losses must reproduce the CSV (production's mean over years)
+        for s in ["pi", "fst"]:
+            recon = np.nanmean(np.column_stack([T[f"{s}_{y}"] for y in YEARS]), axis=1)
+            bad = ~np.isclose(recon, T[f"csv_{s}_loss"], rtol=1e-9, atol=1e-15)
+            if bad.any():
+                raise SystemExit(f"{s}_loss: {int(bad.sum())} trials do not reproduce the CSV "
+                                 f"(max abs diff {np.max(np.abs(recon - T[f'csv_{s}_loss'])):.3g})")
+        print("Self-check: per-year pi/fst losses reproduce the CSV losses for every trial.")
+    else:
+        # --- self-check against an earlier run: what the target change cannot touch must match
+        ref = {(r["source"], int(r["job_id"]), int(r["iteration"])): r
+               for r in csv.DictReader(open(args.verify_against, newline=""))}
+        keys = [(s, int(j), int(i)) for s, j, i in zip(src, T["job_id"], T["iteration"])]
+        if set(keys) != set(ref):
+            raise SystemExit(f"--verify-against: trial sets differ ({len(set(keys) ^ set(ref))} "
+                             f"trials in one but not the other)")
+        cols = [f"{s}_{y}" for s in ["pi", "fst"] for y in YEARS if y not in args.changed_years] \
+               + [f"sim_{k}" for k in SUMMARIES]
+        for c in cols:
+            refv = np.array([float(ref[k][c]) for k in keys])
+            bad = ~np.isclose(T[c], refv, rtol=1e-9, atol=1e-15)
+            if bad.any():
+                raise SystemExit(f"--verify-against: {c} differs in {int(bad.sum())} trials "
+                                 f"(max abs diff {np.max(np.abs(T[c] - refv)):.3g})")
+        for y in args.changed_years:
+            for s in ["pi", "fst"]:
+                refv = np.array([float(ref[k][f"{s}_{y}"]) for k in keys])
+                print(f"  {s}_{y}: mean loss {refv.mean():.6f} in the reference -> "
+                      f"{T[f'{s}_{y}'].mean():.6f} now (target changed)")
+        print(f"Self-check: {len(cols)} target-independent columns reproduce {args.verify_against} "
+              f"for every trial.")
 
     L = {s: np.mean(np.column_stack([T[f"{s.split('_')[0]}_{y}"] for y in FIT_YEARS]), axis=1)
          for s in FITTED}

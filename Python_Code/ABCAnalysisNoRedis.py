@@ -109,11 +109,24 @@ RAW_FEATURE_STATS = ["diversities", "divergences", "fst", "relatedness", "ld"]
 TEMPORAL_FC_OBS = Path("../data/empiricalStats/averaged_temporalFc.csv")
 TEMPORAL_FC_SIM = Path("../data/Output_Data/temporal_fc.csv")
 
+# Spatio-temporal F_st (CLAUDE.md 7.9.14B). Diagnostic with NO loss yet (no empirical target), so
+# it adds no CSV column; the per-pair file is copied into each trial's detail folder so a batch
+# can be scored offline once the target exists -- trials keep no tree sequence, so this copy is
+# the only way the statistic survives a batch.
+STFST_SIM = Path("../data/Output_Data/spatiotemporal_fst.csv")
+
 
 # Subpops too thinly sampled for a usable pairwise Fst are dropped from the FITTED statistics --
 # at n<=3, 46.7% of 2015's pairs return a negative Fst. Only 2015 is affected (CLAUDE.md 7.0).
 EXCLUDE_SMALL_SUBPOPS = True
 MIN_SUBPOP_N = 4
+
+# Whole sites dropped from the FITTED statistics, on both sides, regardless of n. A sampled family
+# is a site-level sampling artifact the landscape model cannot and should not reproduce -- unlike
+# failed individual beetles, which go in sample_exclusions instead. Mortensen9-2015: after the
+# het-deficit correction all 10 within-site pairs are >= 3rd degree (9 >= 2nd, min phi 0.079), where
+# no other site in any year has a median above 0.013 (Sohan, 2026-10-10; CLAUDE.md 7.0).
+EXCLUDED_SITES = {"Mortensen9-2015"}
 
 # Lowest distance bin entering ld_loss, in bp. DERIVED FROM r, not a free choice: the
 # 324-generation forward window only controls d >= 1/(2*G*r), and everything shorter is set by
@@ -350,6 +363,7 @@ def _copy_raw_features(iteration_dir):
                 shutil.copy2(src, iteration_dir / f"{stat}_{year}.csv")
     if COMPUTE_FC and TEMPORAL_FC_SIM.exists():
         shutil.copy2(TEMPORAL_FC_SIM, iteration_dir / TEMPORAL_FC_SIM.name)
+    shutil.copy2(STFST_SIM, iteration_dir / STFST_SIM.name)   # model() has checked it exists
 
 
 def _read_temporal_fc(path):
@@ -415,8 +429,8 @@ def _fc_loss(obs, sim):
 def get_keep_mask(year):
     '''Boolean mask over specifier-matrix rows: True = subpop retained in the FITTED statistics.
     Drops subpops with fewer than MIN_SUBPOP_N diploid individuals when EXCLUDE_SMALL_SUBPOPS is
-    set. Indexed by specifier row order, so the SAME mask is valid for the observed and the
-    simulated matrices (CLAUDE.md 4) -- that is what keeps the comparison element-wise.
+    set, and always drops EXCLUDED_SITES. Indexed by specifier row order, so the SAME mask is valid
+    for the observed and the simulated matrices (CLAUDE.md 4) -- that is what keeps the comparison element-wise.
     Raises if a specifier site is missing from the popfile rather than silently keeping it.'''
     year = str(year)
     if year in _KEEP_MASK_CACHE:
@@ -434,6 +448,11 @@ def get_keep_mask(year):
         if missing:
             raise ValueError(f"{year}: specifier sites absent from popFile{year}: {missing}")
         mask = np.array([counts[s] >= MIN_SUBPOP_N for s in names], dtype=bool)
+
+    unknown = {s for s in EXCLUDED_SITES if s.endswith(f"-{year}")} - set(names)
+    if unknown:
+        raise ValueError(f"{year}: EXCLUDED_SITES not in the specifier matrix: {sorted(unknown)}")
+    mask = mask & np.array([s not in EXCLUDED_SITES for s in names], dtype=bool)
 
     _KEEP_MASK_CACHE[year] = mask
     return mask
@@ -466,6 +485,7 @@ def model(parameter):
 
     #Run the model - change silent to true for actual runs
     import Main   # lazy: see the note beside the imports at the top of this file
+    STFST_SIM.unlink(missing_ok=True)   # so the existence check below proves THIS trial wrote it
     Main.main(num_clusters=numClusters, migration_rates_modifier=m, population_modifier=pop,
               total_migration=total_migration, mutation_rate=mutation_rate, recombination_rate=recombination_rate, silent=True,
               refound_k=refound_k, refound_m=refound_m)
@@ -501,6 +521,12 @@ def model(parameter):
                 f"same COMPUTE_FC environment variable -- set it for the whole process, not just "
                 f"this module.")
         outDict["temporal_fc"] = _read_temporal_fc(TEMPORAL_FC_SIM)
+
+    # Not scored, but a trial without it would lose the statistic for good (no tree sequence is
+    # kept), so its absence is an error, not a gap.
+    if not STFST_SIM.exists():
+        raise FileNotFoundError(f"{STFST_SIM} was not written by AnalyzeTreeSeq "
+                                f"(calculate_spatiotemporal_fst, CLAUDE.md 7.9.14B).")
     return outDict
 
 

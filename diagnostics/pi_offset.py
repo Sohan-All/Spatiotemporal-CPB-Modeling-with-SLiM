@@ -16,12 +16,15 @@ kept site, resid = log pi_obs - median over accepted trials of log pi_sim. Repor
 resid before/after removing the predicted factor, and the site-level regression of resid on
 x = e_bar/(2n-1) (expected slope ~ -1, since log(1-x) ~ -x).
 
-Usage (from diagnostics/):  python pi_offset.py      (needs holdout_2023.py's output; no sim)
+Usage (from diagnostics/):  python pi_offset.py [--holdout ../out/holdout]
+                            (needs holdout_2023.py's output; no sim)
+Per-site n and e_bar leave out sample_exclusions.EXCLUDED_SAMPLES, matching the target (7.9.16).
 """
 import sys as _sys
 from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "Python_Code"))
 
+import argparse
 import csv
 import os
 from pathlib import Path
@@ -35,11 +38,18 @@ SRC = {"batch3": ROOT / "out" / "batch3_raw", "batch6off": ROOT / "out" / "batch
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--holdout", default=str(ROOT / "out" / "holdout"),
+                    help="holdout_2023.py output directory whose accepted trials are the reference")
+    args = ap.parse_args()
+    holdout = Path(args.holdout).resolve()
     os.chdir(ROOT / "Python_Code")
     import ABCAnalysisNoRedis as ABC
+    from sample_exclusions import EXCLUDED_SAMPLES, exclusion_id
+    print(f"sample_exclusions: [{exclusion_id()}]   reference: {holdout}")
 
     obs = ABC.getObservedData()
-    acc = [r for r in csv.DictReader(open(ROOT / "out" / "holdout" / "holdout_trials.csv"))
+    acc = [r for r in csv.DictReader(open(holdout / "holdout_trials.csv"))
            if r["accepted_primary"] == "1"]
     dirs = [SRC[r["source"]] / f"detailed_sim_results_{r['job_id']}" / f"run{int(r['iteration']) + 1}"
             for r in acc]
@@ -58,7 +68,7 @@ def main():
         members = {}
         for line in open(ROOT / "data" / "Genetic_Data" / f"popFile{y}", encoding="utf-8"):
             p = line.split()
-            if len(p) >= 2:
+            if len(p) >= 2 and p[0] not in EXCLUDED_SAMPLES:   # same samples as the target (7.9.16)
                 members.setdefault(p[1], []).append(p[0])
         miss = [s for v in members.values() for s in v if s not in e_by]
         if miss:

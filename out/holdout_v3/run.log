@@ -1,0 +1,80 @@
+Loaded 3128 trials: batch3 2500, batch6off 628
+  pi_2015: mean loss 0.036563 in the reference -> 0.030116 now (target changed)
+  fst_2015: mean loss 0.019024 in the reference -> 0.015062 now (target changed)
+  pi_2023: mean loss 0.036309 in the reference -> 0.029012 now (target changed)
+  fst_2023: mean loss 0.018640 in the reference -> 0.015830 now (target changed)
+Self-check: 8 target-independent columns reproduce C:\Users\sohan\Documents\School\Entomology Research\Spatiotemporal-CPB-Modeline-with-SLiM\out\holdout\holdout_trials.csv for every trial.
+
+FIT (2015+2019 only)
+  pi_loss   sigma 0.003056  R2_tot 0.308  demographic 0.294  -> weight 0.339
+  fst_loss  sigma 0.003782  R2_tot 0.596  demographic 0.574  -> weight 0.661
+  Spearman(pi_fit, fst_fit) = +0.623
+
+PRIMARY: demographic-R2 weights, top 5%  (accepted 156)
+  summary          observed   acc 2.5%    acc med  acc 97.5%  obs pct prior 2.5% prior 97.5%  pr pct  width  verdict
+ *fst_med           0.00148    0.00056    0.00155    0.00504    48.7%    0.00036     0.10433   28.5%   0.04  inside
+  fst_mean          0.00257    0.00176    0.00402    0.00751    14.1%    0.00040     0.10144   29.1%   0.06  inside
+  fst_med_noiso     0.00141    0.00057    0.00156    0.00502    44.9%    0.00036     0.10463   26.8%   0.04  inside
+ *logpi            -4.39836   -4.40195   -4.39526   -4.39044    16.0%   -4.51429    -4.37804   61.5%   0.08  inside
+  fst_mean_noiso    0.00254    0.00176    0.00412    0.00768    12.2%    0.00040     0.10242   28.9%   0.06  inside
+  logpi_noiso      -4.39557   -4.40208   -4.39540   -4.39051    45.5%   -4.51470    -4.37805   69.5%   0.08  inside
+  2023 pi_loss: accepted median 0.01497 vs all-trial median 0.01869; accepted trials sit at the 8th pct of all trials on average (50 = no information)
+  2023 fst_loss: accepted median 0.00315 vs all-trial median 0.00507; accepted trials sit at the 35th pct of all trials on average (50 = no information)
+
+SENSITIVITY: equal_w_5pct  (accepted 156)
+  summary          observed   acc 2.5%    acc med  acc 97.5%  obs pct prior 2.5% prior 97.5%  pr pct  width  verdict
+ *fst_med           0.00148    0.00059    0.00179    0.00513    46.2%    0.00036     0.10433   28.5%   0.04  inside
+  fst_mean          0.00257    0.00220    0.00489    0.00773     5.8%    0.00040     0.10144   29.1%   0.05  inside
+  fst_med_noiso     0.00141    0.00060    0.00180    0.00522    42.9%    0.00036     0.10463   26.8%   0.04  inside
+ *logpi            -4.39836   -4.40144   -4.39581   -4.39077    23.1%   -4.51429    -4.37804   61.5%   0.08  inside
+  fst_mean_noiso    0.00254    0.00226    0.00505    0.00792     4.5%    0.00040     0.10242   28.9%   0.06  inside
+  logpi_noiso      -4.39557   -4.40154   -4.39594   -4.39088    53.2%   -4.51470    -4.37805   69.5%   0.08  inside
+  2023 pi_loss: accepted median 0.01503 vs all-trial median 0.01869; accepted trials sit at the 10th pct of all trials on average (50 = no information)
+  2023 fst_loss: accepted median 0.00356 vs all-trial median 0.00507; accepted trials sit at the 40th pct of all trials on average (50 = no information)
+
+SENSITIVITY: r2_w_20pct  (accepted 626)
+  summary          observed   acc 2.5%    acc med  acc 97.5%  obs pct prior 2.5% prior 97.5%  pr pct  width  verdict
+ *fst_med           0.00148    0.00040    0.00160    0.00552    46.5%    0.00036     0.10433   28.5%   0.05  inside
+  fst_mean          0.00257    0.00045    0.00272    0.00737    48.6%    0.00040     0.10144   29.1%   0.07  inside
+  fst_med_noiso     0.00141    0.00041    0.00161    0.00557    43.3%    0.00036     0.10463   26.8%   0.05  inside
+ *logpi            -4.39836   -4.40240   -4.39492   -4.38920    17.9%   -4.51429    -4.37804   61.5%   0.10  inside
+  fst_mean_noiso    0.00254    0.00045    0.00277    0.00751    47.8%    0.00040     0.10242   28.9%   0.07  inside
+  logpi_noiso      -4.39557   -4.40250   -4.39494   -4.38931    43.1%   -4.51470    -4.37805   69.5%   0.10  inside
+  2023 pi_loss: accepted median 0.01521 vs all-trial median 0.01869; accepted trials sit at the 13th pct of all trials on average (50 = no information)
+  2023 fst_loss: accepted median 0.00261 vs all-trial median 0.00507; accepted trials sit at the 27th pct of all trials on average (50 = no information)
+
+SENSITIVITY: batch3_only  (accepted 125)
+  summary          observed   acc 2.5%    acc med  acc 97.5%  obs pct prior 2.5% prior 97.5%  pr pct  width  verdict
+ *fst_med           0.00148    0.00052    0.00152    0.00501    48.8%    0.00036     0.10522   28.2%   0.04  inside
+  fst_mean          0.00257    0.00177    0.00402    0.00746    15.2%    0.00040     0.10210   29.2%   0.06  inside
+  fst_med_noiso     0.00141    0.00055    0.00153    0.00500    44.8%    0.00036     0.10544   26.6%   0.04  inside
+ *logpi            -4.39836   -4.40189   -4.39548   -4.39048    16.0%   -4.51560    -4.37832   61.6%   0.08  inside
+  fst_mean_noiso    0.00254    0.00179    0.00412    0.00763    13.6%    0.00040     0.10384   29.1%   0.06  inside
+  logpi_noiso      -4.39557   -4.40202   -4.39553   -4.39055    48.0%   -4.51568    -4.37829   69.5%   0.08  inside
+  2023 pi_loss: accepted median 0.01496 vs all-trial median 0.01864; accepted trials sit at the 9th pct of all trials on average (50 = no information)
+  2023 fst_loss: accepted median 0.00314 vs all-trial median 0.00513; accepted trials sit at the 35th pct of all trials on average (50 = no information)
+
+SENSITIVITY: batch6off_only  (accepted 31)
+  summary          observed   acc 2.5%    acc med  acc 97.5%  obs pct prior 2.5% prior 97.5%  pr pct  width  verdict
+ *fst_med           0.00148    0.00061    0.00135    0.00434    54.8%    0.00036     0.09018   29.8%   0.04  inside
+  fst_mean          0.00257    0.00229    0.00417    0.00693     9.7%    0.00039     0.09298   28.7%   0.05  inside
+  fst_med_noiso     0.00141    0.00062    0.00140    0.00437    51.6%    0.00036     0.09025   27.7%   0.04  inside
+ *logpi            -4.39836   -4.40075   -4.39464   -4.39158    16.1%   -4.51075    -4.37738   60.8%   0.07  inside
+  fst_mean_noiso    0.00254    0.00232    0.00433    0.00710     6.5%    0.00039     0.09447   28.2%   0.05  inside
+  logpi_noiso      -4.39557   -4.40086   -4.39475   -4.39162    38.7%   -4.51166    -4.37736   69.3%   0.07  inside
+  2023 pi_loss: accepted median 0.01501 vs all-trial median 0.01897; accepted trials sit at the 7th pct of all trials on average (50 = no information)
+  2023 fst_loss: accepted median 0.00321 vs all-trial median 0.00469; accepted trials sit at the 36th pct of all trials on average (50 = no information)
+
+WHERE THE ACCEPTED TRIALS SIT (primary). Enrichment = accepted share / prior share.
+  pop              Q1 [2.01e+03,7.87e+03] x0.49  Q2 [7.87e+03,1.35e+04] x0.77  Q3 [1.35e+04,1.94e+04] x1.26  Q4 [1.94e+04,2.5e+04] x1.49
+  total_migration  Q1 [0.00102,0.0787] x0.54  Q2 [0.0787,0.155] x1.18  Q3 [0.155,0.224] x1.05  Q4 [0.224,0.301] x1.23
+  m                Q1 [8.39e-07,3.84e-05] x0.08  Q2 [3.84e-05,0.000101] x1.51  Q3 [0.000101,0.000264] x2.13  Q4 [0.000264,0.0225] x0.28
+  numClusters      33 demes x1.20  66 demes x1.14  99 demes x0.63
+  pop x total_migration (rows pop quartile, cols tm quartile; accepted counts):
+    pop Q1:    1    3    6    9
+    pop Q2:    3    7   12    8
+    pop Q3:    7   21   10   11
+    pop Q4:   10   15   13   20
+  Spearman(pop, total_migration) among accepted: -0.094 (a ridge shows as negative)
+
+Wrote C:\Users\sohan\Documents\School\Entomology Research\Spatiotemporal-CPB-Modeline-with-SLiM\out\holdout_v3\holdout_trials.csv, surface.csv, holdout_summary.json

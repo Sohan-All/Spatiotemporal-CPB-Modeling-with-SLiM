@@ -211,6 +211,88 @@ def calculate_temporal_fc(ts, cluster_data, output_path, rng=None):
     return rows
 
 
+def _draw_disjoint(ts, deme, time, sizes, rng):
+    """Draw DISJOINT sets of whole individuals from one deme at one time, one set per entry of
+    `sizes`, and return their sample nodes. Two sites mapped to the same deme in the same year are
+    two different beetle samples, so they must not share individuals. If the deme is too small for
+    all of them, each gets an equal share (recorded as n in the output, never silent)."""
+    by_ind = {}
+    for nd in ts.samples(population=deme, time=time):
+        by_ind.setdefault(ts.node(nd).individual, []).append(int(nd))
+    if not by_ind:
+        raise ValueError(
+            f"deme {deme} has no sample nodes at time {time}. The production simplify keeps only "
+            f"each year's Hungarian-assigned demes; a nearest-centroid deme outside that set has "
+            f"none (measured never to happen at 33/66/99 demes -- if it does now, add these demes "
+            f"to samplesToKeep in analyze_tree_sequence).")
+    inds = rng.permutation(np.array(sorted(by_ind), dtype=np.int64))
+    take = list(sizes) if sum(sizes) <= len(inds) else [min(n, len(inds) // len(sizes))
+                                                        for n in sizes]
+    out, off = [], 0
+    for n in take:
+        out.append(np.array(sorted(nd for i in inds[off:off + n] for nd in by_ind[int(i)]),
+                            dtype=np.int64))
+        off += n
+    return out
+
+
+def hudson_fst_pairs(ts, sample_sets, pairs):
+    """Hudson F_st = 1 - mean(pi_a, pi_b) / d_xy for each (a, b) in `pairs`, site mode, genome-wide
+    (each of pi and d_xy is a whole-sequence ratio before the F_st ratio is taken). Two batched
+    traversals. Same formula as calculate_diversity_and_divergence -- NOT ts.Fst (Nei, ~half)."""
+    pi = np.asarray(ts.diversity(sample_sets), dtype=float)
+    dxy = np.asarray(ts.divergence(sample_sets, indexes=pairs), dtype=float)
+    a, b = np.array([p[0] for p in pairs]), np.array([p[1] for p in pairs])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        f = 1.0 - 0.5 * (pi[a] + pi[b]) / dxy
+    return np.where(dxy == 0, 0.0, f)        # 0 beats NaN, as for the production F_st
+
+
+def calculate_spatiotemporal_fst(ts, cluster_data, output_path, rng=None):
+    """Pairwise Hudson F_st between every pair of sites across ALL THREE collections, same-year
+    pairs included (CLAUDE.md 7.9.14B; spec and summary in stfst_common). A DIAGNOSTIC: there is
+    no empirical target yet, so no loss is computed -- the per-pair file is kept with each trial
+    (ABCAnalysisNoRedis._copy_raw_features) so batches can be scored once the target exists.
+
+    DEMES ARE NEAREST-CENTROID, as for temporal F_c (_nearest_cluster_rows): the production
+    Hungarian matching splits persistent local populations across years (26/50 same-population
+    pairs share a deme at 33 demes, against 48/50 nearest-centroid -- CLAUDE.md 7.9.14C), which
+    would put spurious differentiation into exactly the cross-year cells this is meant to read.
+
+    SUBSAMPLED to each site's real n (invariant 1), one draw per (year, site) reused in every pair.
+    Sites sharing a deme in one year get disjoint individuals (_draw_disjoint). No miscalls: the
+    empirical estimator (pixy WC) keeps the het deficit out of F_ST (stfst_common docstring).
+    """
+    import stfst_common as stc
+    if rng is None:
+        rng = np.random.default_rng(np.random.randint(0, 2**31 - 1))
+
+    sites = stc.site_table(Path("../data/Genetic_Data"))
+    nearest = _nearest_cluster_rows(cluster_data)
+    demes = [nearest(s["lat"], s["lon"]) for s in sites]
+
+    groups = {}                                  # (year, deme) -> [site indexes]
+    for i, (s, d) in enumerate(zip(sites, demes)):
+        groups.setdefault((s["year"], d), []).append(i)
+    sample_sets = [None] * len(sites)
+    for (y, d), idx in groups.items():
+        for i, nodes in zip(idx, _draw_disjoint(ts, d, stc.YEAR_TIME[y],
+                                                [sites[i]["n"] for i in idx], rng)):
+            sample_sets[i] = nodes
+
+    pairs = stc.all_pairs(sites)
+    fst = hudson_fst_pairs(ts, sample_sets, [(a, b) for a, b, _, _ in pairs])
+    rows = []
+    for (a, b, gap, dist), f in zip(pairs, fst):
+        rows.append({"year_a": sites[a]["year"], "site_a": sites[a]["site"],
+                     "year_b": sites[b]["year"], "site_b": sites[b]["site"], "gap": gap,
+                     "dist_km": dist, "n_a": len(sample_sets[a]) // 2,
+                     "n_b": len(sample_sets[b]) // 2, "fst": float(f),
+                     "deme_a": demes[a], "deme_b": demes[b]})
+    stc.write_pairs(output_path, rows, extra=("deme_a", "deme_b"))
+    return rows
+
+
 def calculate_ld_decay(ts, genome_indicies, time, year, output_path, rng=None, thin=1):
     '''Per-deme LD decay (mean r^2 vs physical distance), written as bins x demes.
 
@@ -514,4 +596,13 @@ def analyze_tree_sequence(mutation_rate=None, recombination_rate=None,
         for key in sorted(pooled):
             print(f"    {key:>5}: F_c = {pooled[key]['fc_mean']:.5f} "
                   f"over {pooled[key]['n_pairs']} field pairs")
+
+    # Spatio-temporal F_st (CLAUDE.md 7.9.14B). Always on: a diagnostic with no loss yet, ~1830
+    # pairs in two batched traversals. The file must be rewritten every trial, or a trial would
+    # carry the previous trial's copy into its detail folder.
+    import stfst_common as stc
+    print(f"Spatio-temporal F_st (stfst_common spec {stc.spec_hash()})...")
+    st_rows = calculate_spatiotemporal_fst(
+        ts, cluster_data, output_path=Path("../data/Output_Data/spatiotemporal_fst.csv"))
+    print(f"    {len(st_rows)} site pairs written")
     

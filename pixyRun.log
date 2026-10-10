@@ -1,0 +1,6 @@
+/home/alleshwaram/miniconda3/envs/pixy/lib/python3.11/site-packages/allel/io/vcf_read.py:1248: UserWarning: 'GT' FORMAT header not found
+  warnings.warn('%r FORMAT header not found' % name)
+sample_exclusions: [S221,S222,S223]
+averaged_genRel_2015.csv: 24x24, normalised by callable, 930522190 denominator sites, 79517088 segregating sites
+averaged_genRel_2019.csv: 17x17, normalised by callable, 930522190 denominator sites, 77975619 segregating sites
+averaged_genRel_2023.csv: 20x20, normalised by callable, 930522190 denominator sites, 78856706 segregating sites
