@@ -27,6 +27,7 @@ import glob, os, re, csv
 import numpy as np, allel
 
 from CallableSites import CALLABLE_SITES, require_callable_sites
+from sample_exclusions import EXCLUDED_SAMPLES, exclusion_id
 
 VCF_FILES = sorted(glob.glob("chr*_cpb.vcf.gz"))        # your 17 chromosome files
 POPFILES  = {2015: "popFile2015", 2019: "popFile2019", 2023: "popFile2023"}
@@ -42,10 +43,13 @@ NORMALISE_BY = "callable"
 
 
 def load_pop(path):
-    """Map each sample ID to its population label (popfile: 'sampleID<TAB>pop')."""
+    """Map each sample ID to its population label (popfile: 'sampleID<TAB>pop').
+    Samples in sample_exclusions are skipped, matching pi/d_xy/F_st (CLAUDE.md 7.9.16)."""
     samp2pop = {}
     for line in open(path):
         sid, pop = line.split()[:2]
+        if sid in EXCLUDED_SAMPLES:
+            continue
         samp2pop[sid] = pop
     return samp2pop
 
@@ -164,6 +168,7 @@ def main():
     if NORMALISE_BY == "callable":
         require_callable_sites()
     os.makedirs(OUTDIR, exist_ok=True)
+    print(f"sample_exclusions: [{exclusion_id()}]")
     # sample order, read once from the first VCF (assumed identical across files)
     _, samples, _, _ = allel.iter_vcf_chunks(VCF_FILES[0], fields=["variants/POS"])
     sample_pos = {s: i for i, s in enumerate(samples)}

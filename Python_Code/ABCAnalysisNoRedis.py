@@ -427,12 +427,9 @@ def get_keep_mask(year):
     if not EXCLUDE_SMALL_SUBPOPS:
         mask = np.ones(len(names), dtype=bool)
     else:
-        counts = {}
-        with open(Path(f"../data/Genetic_Data/popFile{year}"), encoding="utf-8") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 2:
-                    counts[parts[1].strip()] = counts.get(parts[1].strip(), 0) + 1
+        # n after sample_exclusions (failed samples dropped from the pi/F_st targets, 7.9.16)
+        import sample_exclusions
+        counts = sample_exclusions.popfile_counts(Path(f"../data/Genetic_Data/popFile{year}"))
         missing = [s for s in names if s not in counts]
         if missing:
             raise ValueError(f"{year}: specifier sites absent from popFile{year}: {missing}")

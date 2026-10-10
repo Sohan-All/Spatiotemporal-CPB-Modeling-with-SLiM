@@ -26,6 +26,7 @@ import os
 from math import comb
 
 from CallableSites import NUM_CHRS, require_callable_sites
+from sample_exclusions import EXCLUDED_SAMPLES, exclusion_id
 
 # --- CONFIG ---------------------------------------------------------------
 YEARS = ("2015", "2019", "2023")
@@ -91,7 +92,11 @@ def read_specifier(year):
                 continue
             fields = line.rstrip("\n").split(',')
             siteNames.append(fields[0].strip())
-            sampleCounts.append(sum(1 for v in fields[3:] if v.strip() != ""))
+            # Samples in sample_exclusions were not given to pixy (PixyTheFiles.py), so they are
+            # not counted here either. A mismatch with pixy's own count raises in check_comparisons
+            # -- e.g. pixy output from before the exclusion.
+            sampleCounts.append(sum(1 for v in fields[3:] if v.strip() != ""
+                                    and f"S{int(float(v))}" not in EXCLUDED_SAMPLES))
 
     for name, count in zip(siteNames, sampleCounts):
         if count < 1:
@@ -185,6 +190,7 @@ def check_diffs(diffs, label):
 def main():
     callable_sites = require_callable_sites(NUM_CHRS)
     os.makedirs(OUTDIR, exist_ok=True)
+    print(f"sample_exclusions: [{exclusion_id()}]")
 
     for year in YEARS:
         siteNames, sampleCounts = read_specifier(year)

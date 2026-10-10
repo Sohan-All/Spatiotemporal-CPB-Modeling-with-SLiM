@@ -52,12 +52,9 @@ def _real_sample_sizes(year):
             if line.strip():
                 names.append(line.split(",")[0].strip())
 
-    counts = {}
-    with open(Path(f"../data/Genetic_Data/popFile{year}"), encoding="utf-8") as f:
-        for line in f:
-            parts = line.split()
-            if len(parts) >= 2:
-                counts[parts[1].strip()] = counts.get(parts[1].strip(), 0) + 1
+    # n after sample_exclusions -- the same counts the empirical targets were computed over (7.9.16)
+    import sample_exclusions
+    counts = sample_exclusions.popfile_counts(Path(f"../data/Genetic_Data/popFile{year}"))
 
     missing = [s for s in names if s not in counts]
     if missing:
