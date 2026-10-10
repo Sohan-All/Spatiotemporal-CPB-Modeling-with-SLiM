@@ -32,11 +32,11 @@ PER-PAIR FILE FORMAT (both sides write it; `read_pairs` reads it):
   year_a <= year_b (collection order); within a year, specifier row order with row_a < row_b.
   n_a / n_b are the diploids ACTUALLY used. The simulated side may also add deme_a, deme_b.
 
-EMPIRICAL SIDE (not built yet). pixy computes F_st only between populations of ONE popfile on ONE
-VCF, so it needs a cross-year merged VCF with year-suffixed population labels. The years were
-imputed separately (Beagle), so their SNP sets must be reconciled first (intersection of sites,
-same REF/ALT) -- and that same reconciled set should then also produce the same-year pairs, so both
-halves of the contrast run over identical sites.
+EMPIRICAL SIDE: ToUseOnBeagles/CalcSpatiotemporalFst.py. pixy computes F_st only between
+populations of ONE popfile on ONE VCF -- which is already the situation: each chr{i}_cpb.vcf.gz
+comes from one Beagle file holding all three years (imputed together), sample IDs are unique across
+years and site labels carry the year. So one combined popfile gives every pair, cross-year and
+same-year, over identical SNPs; no VCF merge or SNP reconciliation is needed.
 
 Distances are between the REAL site coordinates (specifier matrices) on both sides -- the deme a
 site maps to in the simulation does not move its distance.
