@@ -100,8 +100,10 @@ LOSSES = list(ABC.LOSS_NAMES)
 # BATCH 3 (2026-09-12): pi_loss, fst_loss, fc_loss. ld_loss is computed and RETIRED (CLAUDE.md
 # 7.5) -- it stays in LOSSES for the diagnostic sections but must not be weighted. Batch 2 was
 # analysed with ["pi_loss", "fst_loss", "ld_loss"]; to re-run that, set this back AND COMPUTE_FC=0.
+# 2026-10-03: fc_loss DEMOTED to diagnostic (CLAUDE.md 7.9.14A/E) -- still computed (COMPUTE_FC stays
+# ON) and still reported, but not weighted. Batches 3-6 were analysed with fc_loss in this list.
 # Validated against LOSSES below so a rename cannot leave a dangling name.
-FITTED = ["pi_loss", "fst_loss", "fc_loss"]
+FITTED = ["pi_loss", "fst_loss"]
 _unknown = [f for f in FITTED if f not in LOSSES]
 if _unknown:
     raise SystemExit(f"FITTED names not in LOSSES: {_unknown}. fc_loss needs COMPUTE_FC=1 (the "

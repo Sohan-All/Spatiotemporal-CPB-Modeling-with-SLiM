@@ -63,7 +63,11 @@ prior_distributions = {
 # identical to the pre-toggle model). Both arms share one batch so the comparison is free of
 # between-batch differences. 75% ON because the ON arm has one more dimension to cover and batch 3
 # already holds 2,500 trials of the OFF model.
-REFOUND_P_ON = 0.75
+# 2026-10-03: SET TO 0 -- re-founding DROPPED (CLAUDE.md 7.9.14D, approved by Sohan). Batch 6 (75% ON)
+# was "tested, not needed": the data reject small K and cannot tell large-K re-founding from
+# persistent demes (7.9.13). The toggle code stays; OFF is verified identical to the pre-toggle model.
+# Do not raise this again without new evidence.
+REFOUND_P_ON = 0.0
 REFOUND_OFF = -1
 # Fixed, not drawn: every founder is an immigrant (full extinction-recolonization), which is what
 # the probe measured. 0.05 would be the bottleneck-only negative control. Recorded per row, like mu.

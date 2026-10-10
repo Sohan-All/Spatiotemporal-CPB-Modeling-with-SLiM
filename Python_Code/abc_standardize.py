@@ -11,9 +11,12 @@ which is its own pilot batch. This script:
   3. combines them into one standardized distance D per run,
   4. writes a ranked CSV and freezes the sigmas to a JSON file.
 
-FITTED (enter D):      pi_loss (log-space), fst_loss, fc_loss   -- from batch 3 (2026-09-12)
-DIAGNOSTIC (not in D): ibd_loss, dxy_loss, genrel_loss, ld_loss -- posterior-predictive checks only
-                       (ld_loss is retired as a fitted statistic, CLAUDE.md 7.5).
+FITTED (enter D):      pi_loss (log-space), fst_loss               -- from 2026-10-03
+DIAGNOSTIC (not in D): fc_loss, ibd_loss, dxy_loss, genrel_loss, ld_loss -- posterior-predictive
+                       checks only (ld_loss is retired as a fitted statistic, CLAUDE.md 7.5;
+                       fc_loss demoted 2026-10-03, CLAUDE.md 7.9.14A/E: its misfit is in the
+                       simulated measurement model, not drift, and the drift it was meant to read
+                       is several times smaller than that error). fc_loss was fitted batch 3-6.
 """
 import json
 import numpy as np
@@ -27,7 +30,8 @@ from pathlib import Path
 RESULTS_CSV   = Path("../out/batch3/abc_results.csv")          # input: the pass results
 RANKED_CSV    = Path("../out/batch3/abc_results_ranked.csv")   # output: results + D, sorted
 SIGMAS_JSON   = Path("../out/batch3/abc_sigmas.json")          # output: frozen sigmas
-FITTED_STATS  = ["pi_loss", "fst_loss", "fc_loss"]      # statistics that enter the distance D
+FITTED_STATS  = ["pi_loss", "fst_loss"]                 # statistics that enter the distance D
+                                                        # (fc_loss demoted to diagnostic 2026-10-03)
 
 # BATCH 3 WEIGHTS: NOT SET YET, deliberately. They come from batch 3's own variance decomposition
 # (python ../diagnostics/collect_batch.py, section 9 prints them), by the 7.4.1 rule: weight each
@@ -37,7 +41,7 @@ FITTED_STATS  = ["pi_loss", "fst_loss", "fc_loss"]      # statistics that enter 
 # (scale_constants.py; CLAUDE.md 7.9.3), which removes pi_loss's main nuisance driver.
 # main() RAISES while this is None, rather than falling back to equal weights -- equal weights were
 # ruled out on both earlier batches, so a silent fallback would be a known-wrong D.
-WEIGHTS       = None   # e.g. {"pi_loss": ..., "fst_loss": ..., "fc_loss": ...} from collect_batch
+WEIGHTS       = None   # e.g. {"pi_loss": ..., "fst_loss": ...} from collect_batch
 
 # HISTORY -- batch 1 (2,495 trials, mu free), results in ../out/batch1/:
 #   WEIGHTS = {"pi_loss": 0.125, "fst_loss": 0.875}, FITTED_STATS = ["pi_loss", "fst_loss"]
